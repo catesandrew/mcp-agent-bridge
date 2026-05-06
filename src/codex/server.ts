@@ -48,7 +48,7 @@ async function loadAgentInstructions(): Promise<string | null> {
 
 async function runCodex(prompt: string): Promise<CodexResult> {
   return new Promise<CodexResult>((resolve, reject) => {
-    const proc = spawn("codex", ["exec"], {
+    const proc = spawn("codex", ["exec", "--skip-git-repo-check"], {
       stdio: ["pipe", "pipe", "pipe"],
     });
 
@@ -56,6 +56,7 @@ async function runCodex(prompt: string): Promise<CodexResult> {
     proc.stdin.end();
 
     let stdout = "";
+    let stderr = "";
     let settled = false;
 
     proc.on("error", (err: Error) => {
@@ -69,12 +70,16 @@ async function runCodex(prompt: string): Promise<CodexResult> {
       stdout += chunk.toString();
     });
 
+    proc.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
     proc.on("close", (code: number | null) => {
       if (settled) return;
       settled = true;
 
       if (code !== 0) {
-        reject(new Error(`codex exited with code ${code ?? "null"}`));
+        reject(new Error(`codex exited with code ${code ?? "null"}: ${stderr.slice(-500)}`));
         return;
       }
 
