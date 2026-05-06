@@ -48,7 +48,11 @@ function parseCopilotOutput(stdout: string): string {
 
 async function runCopilot(prompt: string): Promise<CopilotResult> {
   return new Promise<CopilotResult>((resolve, reject) => {
-    const proc = spawn("copilot", ["-p", prompt, "--output-format", "json"], {
+    const args = ["-p", prompt, "--output-format", "json"];
+    const model = process.env["COPILOT_REVIEW_MODEL"];
+    if (model) args.push("--model", model);
+
+    const proc = spawn("copilot", args, {
       stdio: ["pipe", "pipe", "pipe"],
     });
 

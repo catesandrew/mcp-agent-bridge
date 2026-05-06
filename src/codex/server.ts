@@ -48,7 +48,11 @@ async function loadAgentInstructions(): Promise<string | null> {
 
 async function runCodex(prompt: string): Promise<CodexResult> {
   return new Promise<CodexResult>((resolve, reject) => {
-    const proc = spawn("codex", ["exec", "--skip-git-repo-check"], {
+    const args = ["exec", "--skip-git-repo-check"];
+    const model = process.env["CODEX_REVIEW_MODEL"];
+    if (model) args.push("--model", model);
+
+    const proc = spawn("codex", args, {
       stdio: ["pipe", "pipe", "pipe"],
     });
 

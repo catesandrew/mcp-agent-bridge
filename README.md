@@ -88,6 +88,7 @@ Wraps `codex exec` with three MCP tools:
 |----------|---------|-------------|
 | `CODEX_MCP_HTTP_PORT` | `8941` | HTTP proxy port |
 | `CODEX_MCP_STREAM_ENDPOINT` | `/mcp` | Streamable HTTP endpoint path |
+| `CODEX_REVIEW_MODEL` | (none, uses config default) | Model override (e.g. `o3`, `gpt-5.4`) |
 | `CODEX_REVIEW_AGENT_PATH` | `~/.codex/agents/code-reviewer.toml` | Path to agent toml for code_review instructions |
 
 ## Copilot MCP Server
@@ -104,6 +105,7 @@ Wraps `copilot -p --output-format json` with two MCP tools:
 |----------|---------|-------------|
 | `COPILOT_MCP_HTTP_PORT` | `8945` | HTTP proxy port |
 | `COPILOT_MCP_STREAM_ENDPOINT` | `/mcp` | Streamable HTTP endpoint path |
+| `COPILOT_REVIEW_MODEL` | (none, uses config default) | Model override (e.g. `gpt-5.2`, `claude-sonnet-4.5`) |
 
 ## Building
 
