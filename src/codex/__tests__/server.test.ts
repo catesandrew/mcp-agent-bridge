@@ -103,7 +103,7 @@ describe("Codex MCP Server", () => {
 
       expect(spawn).toHaveBeenCalledWith(
         "codex",
-        ["exec"],
+        ["exec", "--skip-git-repo-check"],
         expect.objectContaining({ stdio: ["pipe", "pipe", "pipe"] }),
       );
 
@@ -191,7 +191,7 @@ describe("Codex MCP Server", () => {
 
       expect(spawn).toHaveBeenCalledWith(
         "codex",
-        ["exec"],
+        ["exec", "--skip-git-repo-check"],
         expect.objectContaining({ stdio: ["pipe", "pipe", "pipe"] }),
       );
 
