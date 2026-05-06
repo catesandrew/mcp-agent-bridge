@@ -13,17 +13,18 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:exe": "bun build --compile --outfile exe/claude-mcp-server src/claude/server.ts && bun build --compile --outfile exe/copilot-mcp-server src/copilot/server.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist exe"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "zod": "^3.25.0"
   },
   "devDependencies": {
-    "@types/node": "^20.17.0",
+    "@types/node": "^25.6.0",
     "typescript": "^5.7.0",
     "vitest": "^3.2.1"
   }
