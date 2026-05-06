@@ -47,7 +47,7 @@ Each agent is a singleton LaunchAgent behind `mcp-proxy` (HTTP/SSE). This means:
 |--------|------|-------|
 | Claude MCP | 8940 | osx.mcp.claude |
 | Codex MCP | 8941 | osx.mcp.codex |
-| Copilot MCP | 8942 | osx.mcp.copilot |
+| Copilot MCP | 8945 | osx.mcp.copilot |
 
 ### Claude MCP Server (the complex one)
 
@@ -121,7 +121,7 @@ After install, any AI agent can use these servers. Example `.mcp.json`:
     },
     "copilot": {
       "type": "streamable-http",
-      "url": "http://localhost:8942/mcp"
+      "url": "http://localhost:8945/mcp"
     }
   }
 }

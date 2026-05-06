@@ -17,16 +17,16 @@ Each agent runs as a singleton macOS LaunchAgent behind [`mcp-proxy`](https://gi
 | Server | Port | Label | Description |
 |--------|------|-------|-------------|
 | Claude | 8940 | `osx.mcp.claude` | Wraps `claude -p` with review, ask, and code_review tools |
-| Codex | 8941 | `osx.mcp.codex` | Passthrough to `codex mcp-server` |
-| Copilot | 8942 | `osx.mcp.copilot` | Placeholder (awaiting CLI MCP support) |
+| Codex | 8941 | `osx.mcp.codex` | Wraps `codex exec` with codex, code_review, and codex_reply tools |
+| Copilot | 8945 | `osx.mcp.copilot` | Wraps `copilot -p` with ask and code_review tools |
 
 ```
 mcp-agent-bridge/
 ├── src/
 │   ├── shared/          # Types, server factory
 │   ├── claude/          # Claude -p wrapper + runner
-│   ├── codex/           # Codex CLI passthrough
-│   └── copilot/         # Copilot placeholder
+│   ├── codex/           # Codex exec wrapper + agent toml integration
+│   └── copilot/         # Copilot -p wrapper + JSONL parser
 ├── bin/                 # stdio entry scripts
 ├── launchd/             # LaunchAgent plists + launcher scripts
 ├── exe/                 # Standalone executables (bun build --compile)
@@ -36,7 +36,7 @@ mcp-agent-bridge/
 
 ## Claude MCP Server
 
-The most capable bridge. Spawns `claude -p` as a child process and exposes three MCP tools:
+Spawns `claude -p` as a child process and exposes three MCP tools:
 
 ### Tools
 
@@ -58,6 +58,8 @@ The most capable bridge. Spawns `claude -p` as a child process and exposes three
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `CLAUDE_MCP_HTTP_PORT` | `8940` | HTTP proxy port |
+| `CLAUDE_MCP_STREAM_ENDPOINT` | `/mcp` | Streamable HTTP endpoint path |
 | `CLAUDE_REVIEW_MODEL` | `opus` | Model for review operations |
 | `CLAUDE_REVIEW_MAX_TURNS` | (none) | Max agentic turns per invocation |
 | `CLAUDE_REVIEW_CWD` | (none) | Working directory for Claude |
@@ -68,11 +70,36 @@ The most capable bridge. Spawns `claude -p` as a child process and exposes three
 
 ## Codex MCP Server
 
-Pure passthrough to `codex mcp-server`, which natively exposes `codex` and `codex-reply` tools. The bridge simply proxies it behind HTTP on port 8941.
+Wraps `codex exec` with three MCP tools:
+
+**`codex`** -- Send a prompt to Codex for code generation or analysis.
+
+**`code_review`** -- Send a diff for structured review. Loads `~/.codex/agents/code-reviewer.toml` developer instructions when available for richer reviews. Returns structured JSON when possible, raw text otherwise.
+
+**`codex_reply`** -- Continue a conversation (context passed inline, not stateful).
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CODEX_MCP_HTTP_PORT` | `8941` | HTTP proxy port |
+| `CODEX_MCP_STREAM_ENDPOINT` | `/mcp` | Streamable HTTP endpoint path |
+| `CODEX_REVIEW_AGENT_PATH` | `~/.codex/agents/code-reviewer.toml` | Path to agent toml for code_review instructions |
 
 ## Copilot MCP Server
 
-Placeholder with a single `status` tool. Will be updated when `copilot-cli mcp-server` is available.
+Wraps `copilot -p --output-format json` with two MCP tools:
+
+**`ask`** -- Ask Copilot a freeform question. Returns text.
+
+**`code_review`** -- Send a diff for structured review. Returns structured JSON when possible, raw text otherwise.
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `COPILOT_MCP_HTTP_PORT` | `8945` | HTTP proxy port |
+| `COPILOT_MCP_STREAM_ENDPOINT` | `/mcp` | Streamable HTTP endpoint path |
 
 ## Building
 
@@ -82,10 +109,10 @@ bun run build
 
 # Standalone executables (no runtime required)
 bun run build:exe
-ls exe/claude-mcp-server exe/copilot-mcp-server
+ls exe/claude-mcp-server exe/codex-mcp-server exe/copilot-mcp-server
 ```
 
-The `build:exe` script uses `bun build --compile` to produce self-contained Mach-O binaries for the Claude and Copilot servers. Codex is excluded since it's a passthrough to an external CLI.
+The `build:exe` script uses `bun build --compile` to produce self-contained Mach-O binaries for all three servers.
 
 ## Testing
 
@@ -94,24 +121,66 @@ bun run test        # single run
 bun run test:watch  # watch mode
 ```
 
-26 tests across 5 suites covering tool registration, argument construction, error handling, and MCP integration via `InMemoryTransport`.
+36 tests across 5 suites covering tool registration, argument construction, error handling, and MCP integration via `InMemoryTransport`.
 
 ## Installation
 
-The install script symlinks LaunchAgent plists and launcher scripts into your dotfiles:
+The install script copies LaunchAgent plists and launcher scripts into your dotfiles:
 
 ```bash
-./install.sh          # symlink only
-./install.sh --load   # symlink + start agents
+./install.sh          # install only
+./install.sh --load   # install + start agents
 ./install.sh --unload # stop agents
 ```
 
 What it does:
-1. Builds the TypeScript project
-2. Symlinks `launchd/osx.mcp.*.plist` to `~/.dotfiles/home/Library/LaunchAgents/`
-3. Symlinks `launchd/launch-agent-*-mcp-http` to `~/.dotfiles/home/.bin/`
+1. Builds standalone executables via `bun run build:exe`
+2. Copies `launchd/osx.mcp.*.plist` to `~/.dotfiles/home/Library/LaunchAgents/`
+3. Copies `launchd/launch-agent-*-mcp-http` to `~/.dotfiles/home/.bin/`
 4. Runs `dfm install` to activate symlinks
 5. Optionally loads LaunchAgents via `launchctl`
+
+### Port Overrides
+
+Each server reads its port from an environment variable. Override via the env files that `launch-agent-runtime` loads:
+
+```bash
+# ~/.local/share/launch-agent-env/claude-mcp-http.env
+CLAUDE_MCP_HTTP_PORT=9940
+
+# ~/.local/share/launch-agent-env/codex-mcp-http.env
+CODEX_MCP_HTTP_PORT=9941
+
+# ~/.local/share/launch-agent-env/copilot-mcp-http.env
+COPILOT_MCP_HTTP_PORT=9945
+```
+
+### Running Multiple Instances
+
+To run multiple instances of the same server on different ports:
+
+1. Copy the plist with a new label:
+   ```bash
+   cp launchd/osx.mcp.claude.plist launchd/osx.mcp.claude-2.plist
+   # Edit: change Label to "osx.mcp.claude-2"
+   # Edit: change launcher script to "launch-agent-claude-2-mcp-http"
+   ```
+
+2. Copy the launcher script:
+   ```bash
+   cp launchd/launch-agent-claude-mcp-http launchd/launch-agent-claude-2-mcp-http
+   # Edit: change setup name to "claude-2-mcp-http"
+   ```
+
+3. Create an env file with the new port:
+   ```bash
+   echo 'CLAUDE_MCP_HTTP_PORT=8946' > ~/.local/share/launch-agent-env/claude-2-mcp-http.env
+   ```
+
+4. Install and load:
+   ```bash
+   ./install.sh --load
+   ```
 
 ## Consumer Configuration
 
@@ -127,6 +196,10 @@ Once running, any MCP client can connect. Add to your `.mcp.json`:
     "codex": {
       "type": "streamable-http",
       "url": "http://localhost:8941/mcp"
+    },
+    "copilot": {
+      "type": "streamable-http",
+      "url": "http://localhost:8945/mcp"
     }
   }
 }
@@ -139,15 +212,13 @@ For direct stdio usage (without the HTTP proxy):
   "mcpServers": {
     "claude_reviewer": {
       "type": "stdio",
-      "command": "node",
-      "args": ["dist/claude/server.js"],
-      "env": { "CLAUDE_REVIEW_MODEL": "opus" }
+      "command": "claude-mcp-server"
     }
   }
 }
 ```
 
-Or use the standalone executables:
+Or with the standalone executables:
 
 ```json
 {
@@ -188,6 +259,7 @@ A Claude Code slash command (`/dual-review`) that orchestrates the review workfl
 - Node.js >= 20 (via nvm, for LaunchAgent runtime)
 - [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) -- installed and authenticated
 - [Codex CLI](https://github.com/openai/codex) -- installed and authenticated
+- [Copilot CLI](https://githubnext.com/projects/copilot-cli) -- installed and authenticated
 - [`mcp-proxy`](https://github.com/nicholasgasior/mcp-proxy) -- installed globally or via npx
 
 ## License

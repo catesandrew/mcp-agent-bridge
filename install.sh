@@ -120,6 +120,6 @@ if [[ "${LOAD_AGENTS}" == "true" ]]; then
 fi
 
 printf '\nInstall complete.\n'
-printf 'Ports: Claude=8940  Codex=8941  Copilot=8942\n'
+printf 'Ports: Claude=8940  Codex=8941  Copilot=8945\n'
 printf 'Use --load to start the agents, or load individually with:\n'
 printf '  launchctl load ~/Library/LaunchAgents/osx.mcp.claude.plist\n'

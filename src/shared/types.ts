@@ -155,5 +155,5 @@ export const REVIEW_JSON_SCHEMA = {
 export const PORTS = {
   claude: 8940,
   codex: 8941,
-  copilot: 8942,
+  copilot: 8945,
 } as const;

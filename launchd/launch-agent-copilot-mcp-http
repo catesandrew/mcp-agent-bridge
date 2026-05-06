@@ -7,7 +7,7 @@ set -euo pipefail
 launch_agent_setup_node "copilot-mcp-http"
 launch_agent_require_command copilot-mcp-server
 
-copilot_mcp_port="${COPILOT_MCP_HTTP_PORT:-8942}"
+copilot_mcp_port="${COPILOT_MCP_HTTP_PORT:-8945}"
 copilot_mcp_stream_endpoint="${COPILOT_MCP_STREAM_ENDPOINT:-/mcp}"
 
 exec npx -y mcp-proxy@6.4.4 \
