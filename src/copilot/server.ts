@@ -174,10 +174,12 @@ ${context ? `Context: ${context}\n\n` : ""}${diff}`;
 }
 
 const isMain =
-  typeof process !== "undefined" &&
-  process.argv[1] &&
-  (process.argv[1].endsWith("/copilot/server.js") ||
-    process.argv[1].endsWith("/copilot/server.ts"));
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  (import.meta as unknown as Record<string, unknown>).main === true ||
+  (typeof process !== "undefined" &&
+    process.argv[1] &&
+    (process.argv[1].endsWith("/copilot/server.js") ||
+      process.argv[1].endsWith("/copilot/server.ts")));
 
 if (isMain) {
   const server = createCopilotServer();

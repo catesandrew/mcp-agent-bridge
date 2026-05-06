@@ -119,12 +119,14 @@ export function createClaudeServer(): McpServer {
   return server;
 }
 
-// When run directly as a script, start the server
+// Start when run directly (node, bun, or compiled binary)
 const isMain =
-  typeof process !== "undefined" &&
-  process.argv[1] &&
-  (process.argv[1].endsWith("/claude/server.js") ||
-    process.argv[1].endsWith("/claude/server.ts"));
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  (import.meta as unknown as Record<string, unknown>).main === true ||
+  (typeof process !== "undefined" &&
+    process.argv[1] &&
+    (process.argv[1].endsWith("/claude/server.js") ||
+      process.argv[1].endsWith("/claude/server.ts")));
 
 if (isMain) {
   const server = createClaudeServer();

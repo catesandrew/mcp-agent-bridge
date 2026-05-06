@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { createServer, startServer } from "../shared/server-factory.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
@@ -7,6 +10,40 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 interface CodexResult {
   /** Trimmed stdout from the Codex CLI. */
   text: string;
+}
+
+const DEFAULT_AGENT_PATH = join(
+  homedir(),
+  ".codex",
+  "agents",
+  "code-reviewer.toml",
+);
+
+let cachedAgentInstructions: string | null | undefined;
+
+/**
+ * Load the developer_instructions from the codex code-reviewer agent toml.
+ * Falls back to null if the file doesn't exist.
+ * Configurable via CODEX_REVIEW_AGENT_PATH env var.
+ */
+async function loadAgentInstructions(): Promise<string | null> {
+  if (cachedAgentInstructions !== undefined) return cachedAgentInstructions;
+
+  const agentPath =
+    process.env["CODEX_REVIEW_AGENT_PATH"] ?? DEFAULT_AGENT_PATH;
+
+  try {
+    const content = await readFile(agentPath, "utf-8");
+    // Extract developer_instructions from TOML (between triple-quote delimiters)
+    const match = content.match(
+      /developer_instructions\s*=\s*"""([\s\S]*?)"""/,
+    );
+    cachedAgentInstructions = match ? match[1]!.trim() : null;
+  } catch {
+    cachedAgentInstructions = null;
+  }
+
+  return cachedAgentInstructions;
 }
 
 async function runCodex(prompt: string): Promise<CodexResult> {
@@ -105,7 +142,9 @@ export function createCodexServer(): McpServer {
       },
     },
     async ({ diff, context }) => {
-      const reviewPrompt = `You are a code reviewer. Review the following and respond with ONLY valid JSON matching this exact schema (no markdown fencing, no extra text):
+      const agentInstructions = await loadAgentInstructions();
+
+      const reviewPrompt = `${agentInstructions ? agentInstructions + "\n\n" : ""}Review the following and respond with ONLY valid JSON matching this exact schema (no markdown fencing, no extra text):
 {"verdict": "APPROVED" or "NEEDS_REVISION", "issues": [{"severity": "critical" or "major" or "minor", "description": "...", "recommendation": "..."}], "suggestions": ["..."]}
 
 ${context ? `Context: ${context}\n\n` : ""}${diff}`;
@@ -163,10 +202,12 @@ ${context ? `Context: ${context}\n\n` : ""}${diff}`;
 }
 
 const isMain =
-  typeof process !== "undefined" &&
-  process.argv[1] &&
-  (process.argv[1].endsWith("/codex/server.js") ||
-    process.argv[1].endsWith("/codex/server.ts"));
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  (import.meta as unknown as Record<string, unknown>).main === true ||
+  (typeof process !== "undefined" &&
+    process.argv[1] &&
+    (process.argv[1].endsWith("/codex/server.js") ||
+      process.argv[1].endsWith("/codex/server.ts")));
 
 if (isMain) {
   const server = createCodexServer();
