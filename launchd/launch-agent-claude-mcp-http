@@ -5,11 +5,10 @@ set -euo pipefail
 . "${HOME}/.bin/launch-agent-runtime"
 
 launch_agent_setup_node "claude-mcp-http"
-launch_agent_require_command claude
+launch_agent_require_command claude-mcp-server
 
 claude_mcp_port="${CLAUDE_MCP_HTTP_PORT:-8940}"
 claude_mcp_stream_endpoint="${CLAUDE_MCP_STREAM_ENDPOINT:-/mcp}"
-claude_mcp_server_path="${CLAUDE_MCP_SERVER_PATH:-/Volumes/dev-ssd/repos/personal/mcp-agent-bridge/dist/claude/server.js}"
 
 exec npx -y mcp-proxy@6.4.4 \
   --host 127.0.0.1 \
@@ -17,4 +16,4 @@ exec npx -y mcp-proxy@6.4.4 \
   --server stream \
   --streamEndpoint "${claude_mcp_stream_endpoint}" \
   -- \
-  node "${claude_mcp_server_path}"
+  claude-mcp-server

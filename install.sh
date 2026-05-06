@@ -55,10 +55,10 @@ if [[ "${UNLOAD_AGENTS}" == "true" ]]; then
   exit 0
 fi
 
-# Build the project first
-log "Building TypeScript..."
-if ! npm run build --prefix "${SCRIPT_DIR}" >/dev/null 2>&1; then
-  err "Build failed. Run 'npm run build' to see errors."
+# Build executables
+log "Building standalone executables..."
+if ! (cd "${SCRIPT_DIR}" && bun install --frozen-lockfile >/dev/null 2>&1 && bun run build:exe >/dev/null 2>&1); then
+  err "Build failed. Run 'bun run build:exe' to see errors."
   exit 1
 fi
 ok "Build successful"
@@ -85,6 +85,15 @@ for script in "${SCRIPT_DIR}"/launchd/launch-agent-*-mcp-http; do
   chmod +x "${script}"
   ok "${name} → ${target}"
 done
+
+# Symlink MCP server binaries
+# log "Symlinking MCP server executables..."
+# for binary in "${SCRIPT_DIR}"/exe/*-mcp-server; do
+#   name="$(basename "${binary}")"
+#   target="${DOTFILES_BIN}/${name}"
+#   ln -sf "${binary}" "${target}"
+#   ok "${name} → ${target}"
+# done
 
 # Run dfm install if available
 if command -v dfm >/dev/null 2>&1; then
