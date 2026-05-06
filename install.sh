@@ -2,26 +2,25 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOTFILES_DIR="${DOTFILES_DIR:-${HOME}/.dotfiles}"
-DOTFILES_BIN="${DOTFILES_DIR}/home/.bin"
-DOTFILES_LAUNCH_AGENTS="${DOTFILES_DIR}/home/Library/LaunchAgents"
 
 usage() {
   cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
 
-Installs mcp-agent-bridge into your dotfiles structure.
+Installs mcp-agent-bridge executables and optionally sets up macOS LaunchAgents.
 
 Options:
-  --load      Load the LaunchAgents immediately after install
-  --unload    Unload the LaunchAgents
-  --help      Show this help message
+  --prefix DIR   Install binaries to DIR (default: ~/.local/bin)
+  --launchd      Also install macOS LaunchAgent plists and launcher scripts
+  --dotfiles DIR Dotfiles root for --launchd mode (default: ~/.dotfiles)
+  --load         Load the LaunchAgents immediately (implies --launchd)
+  --unload       Unload the LaunchAgents and exit
+  --help         Show this help message
 
-What it does:
-  1. Symlinks launchd/osx.mcp.*.plist → ~/.dotfiles/home/Library/LaunchAgents/
-  2. Symlinks launchd/launch-agent-*-mcp-http → ~/.dotfiles/home/.bin/
-  3. Runs 'dfm install' to activate symlinks
-  4. Optionally loads the LaunchAgents via launchctl
+Examples:
+  $(basename "$0")                     # build + install binaries to ~/.local/bin
+  $(basename "$0") --prefix /usr/local/bin
+  $(basename "$0") --launchd --load    # full macOS setup with LaunchAgents
 EOF
   exit 0
 }
@@ -30,18 +29,25 @@ log() { printf '  %s\n' "$*"; }
 ok()  { printf '  ✓ %s\n' "$*"; }
 err() { printf '  ✗ %s\n' "$*" >&2; }
 
+PREFIX="${HOME}/.local/bin"
+INSTALL_LAUNCHD=false
 LOAD_AGENTS=false
 UNLOAD_AGENTS=false
+DOTFILES_DIR="${DOTFILES_DIR:-${HOME}/.dotfiles}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --load)   LOAD_AGENTS=true; shift ;;
-    --unload) UNLOAD_AGENTS=true; shift ;;
-    --help)   usage ;;
-    *)        err "Unknown option: $1"; usage ;;
+    --prefix)    PREFIX="$2"; shift 2 ;;
+    --launchd)   INSTALL_LAUNCHD=true; shift ;;
+    --dotfiles)  DOTFILES_DIR="$2"; shift 2 ;;
+    --load)      INSTALL_LAUNCHD=true; LOAD_AGENTS=true; shift ;;
+    --unload)    UNLOAD_AGENTS=true; shift ;;
+    --help)      usage ;;
+    *)           err "Unknown option: $1"; usage ;;
   esac
 done
 
+# ── Unload ────────────────────────────────────────────────────────────────────
 if [[ "${UNLOAD_AGENTS}" == "true" ]]; then
   log "Unloading LaunchAgents..."
   for label in osx.mcp.claude osx.mcp.codex osx.mcp.copilot; do
@@ -55,7 +61,7 @@ if [[ "${UNLOAD_AGENTS}" == "true" ]]; then
   exit 0
 fi
 
-# Build executables
+# ── Build ─────────────────────────────────────────────────────────────────────
 log "Building standalone executables..."
 if ! (cd "${SCRIPT_DIR}" && bun install --frozen-lockfile >/dev/null 2>&1 && bun run build:exe >/dev/null 2>&1); then
   err "Build failed. Run 'bun run build:exe' to see errors."
@@ -63,63 +69,66 @@ if ! (cd "${SCRIPT_DIR}" && bun install --frozen-lockfile >/dev/null 2>&1 && bun
 fi
 ok "Build successful"
 
-# Ensure dotfiles directories exist
-mkdir -p "${DOTFILES_BIN}"
-mkdir -p "${DOTFILES_LAUNCH_AGENTS}"
-
-# Copy plist files (launchctl cannot follow symlinks across volumes)
-log "Copying LaunchAgent plists..."
-for plist in "${SCRIPT_DIR}"/launchd/osx.mcp.*.plist; do
-  name="$(basename "${plist}")"
-  target="${DOTFILES_LAUNCH_AGENTS}/${name}"
-  rm -f "${target}"
-  cp "${plist}" "${target}"
-  ok "${name} → ${target}"
+# ── Install binaries ──────────────────────────────────────────────────────────
+mkdir -p "${PREFIX}"
+log "Installing binaries to ${PREFIX}..."
+for binary in "${SCRIPT_DIR}"/exe/*-mcp-server; do
+  name="$(basename "${binary}")"
+  rm -f "${PREFIX}/${name}"
+  cp "${binary}" "${PREFIX}/${name}"
+  chmod +x "${PREFIX}/${name}"
+  ok "${name}"
 done
 
-# Copy launcher scripts (same cross-volume issue as plists)
-log "Copying launcher scripts..."
-for script in "${SCRIPT_DIR}"/launchd/launch-agent-*-mcp-http; do
-  name="$(basename "${script}")"
-  target="${DOTFILES_BIN}/${name}"
-  rm -f "${target}"
-  cp "${script}" "${target}"
-  chmod +x "${target}"
-  ok "${name} → ${target}"
-done
+printf '\nBinaries installed to %s\n' "${PREFIX}"
+printf 'Ensure %s is in your PATH.\n\n' "${PREFIX}"
 
-# Symlink MCP server binaries
-# log "Symlinking MCP server executables..."
-# for binary in "${SCRIPT_DIR}"/exe/*-mcp-server; do
-#   name="$(basename "${binary}")"
-#   target="${DOTFILES_BIN}/${name}"
-#   ln -sf "${binary}" "${target}"
-#   ok "${name} → ${target}"
-# done
+# ── macOS LaunchAgents (optional) ─────────────────────────────────────────────
+if [[ "${INSTALL_LAUNCHD}" == "true" ]]; then
+  DOTFILES_BIN="${DOTFILES_DIR}/home/.bin"
+  DOTFILES_LA="${DOTFILES_DIR}/home/Library/LaunchAgents"
 
-# Run dfm install if available
-if command -v dfm >/dev/null 2>&1; then
-  log "Running dfm install..."
-  dfm install
-  ok "dfm install complete"
-else
-  log "dfm not found — skipping. Symlinks are in place but not activated."
-fi
+  mkdir -p "${DOTFILES_BIN}" "${DOTFILES_LA}"
 
-# Optionally load the LaunchAgents
-if [[ "${LOAD_AGENTS}" == "true" ]]; then
-  log "Loading LaunchAgents..."
-  for plist in "${HOME}/Library/LaunchAgents"/osx.mcp.*.plist; do
-    if [[ -f "${plist}" ]]; then
-      label="$(basename "${plist}" .plist)"
-      launchctl unload "${plist}" 2>/dev/null || true
-      launchctl load "${plist}"
-      ok "Loaded ${label}"
-    fi
+  log "Copying LaunchAgent plists..."
+  for plist in "${SCRIPT_DIR}"/examples/macos/osx.mcp.*.plist; do
+    name="$(basename "${plist}")"
+    target="${DOTFILES_LA}/${name}"
+    rm -f "${target}"
+    cp "${plist}" "${target}"
+    ok "${name}"
   done
+
+  log "Copying launcher scripts..."
+  for script in "${SCRIPT_DIR}"/examples/macos/launch-agent-*-mcp-http; do
+    name="$(basename "${script}")"
+    target="${DOTFILES_BIN}/${name}"
+    rm -f "${target}"
+    cp "${script}" "${target}"
+    chmod +x "${target}"
+    ok "${name}"
+  done
+
+  if command -v dfm >/dev/null 2>&1; then
+    log "Running dfm install..."
+    dfm install
+    ok "dfm install complete"
+  fi
+
+  if [[ "${LOAD_AGENTS}" == "true" ]]; then
+    log "Loading LaunchAgents..."
+    for plist in "${HOME}/Library/LaunchAgents"/osx.mcp.*.plist; do
+      if [[ -f "${plist}" ]]; then
+        label="$(basename "${plist}" .plist)"
+        launchctl unload "${plist}" 2>/dev/null || true
+        launchctl load "${plist}"
+        ok "Loaded ${label}"
+      fi
+    done
+  fi
+
+  printf '\nLaunchAgents installed.\n'
+  printf 'Ports: Claude=8940  Codex=8941  Copilot=8945\n'
 fi
 
-printf '\nInstall complete.\n'
-printf 'Ports: Claude=8940  Codex=8941  Copilot=8945\n'
-printf 'Use --load to start the agents, or load individually with:\n'
-printf '  launchctl load ~/Library/LaunchAgents/osx.mcp.claude.plist\n'
+printf 'Done.\n'

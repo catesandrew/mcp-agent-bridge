@@ -5,9 +5,11 @@ Bridges AI coding agents (Claude Code, OpenAI Codex, GitHub Copilot) as MCP serv
 ## Quick Start
 
 ```bash
-bun install
-bun run build
-./install.sh --load
+# Install binaries to ~/.local/bin
+./install.sh
+
+# Or with macOS LaunchAgents (persistent background services)
+./install.sh --launchd --load
 ```
 
 ## Architecture
@@ -27,11 +29,12 @@ mcp-agent-bridge/
 │   ├── claude/          # Claude -p wrapper + runner
 │   ├── codex/           # Codex exec wrapper + agent toml integration
 │   └── copilot/         # Copilot -p wrapper + JSONL parser
-├── bin/                 # stdio entry scripts
-├── launchd/             # LaunchAgent plists + launcher scripts
+├── bin/                 # stdio entry scripts (node)
 ├── exe/                 # Standalone executables (bun build --compile)
+├── examples/
+│   └── macos/           # LaunchAgent plists + launcher scripts
 ├── skills/dual-review/  # Claude Code slash command
-└── install.sh           # Dotfiles installer
+└── install.sh           # Cross-platform installer
 ```
 
 ## Claude MCP Server
@@ -125,24 +128,32 @@ bun run test:watch  # watch mode
 
 ## Installation
 
-The install script copies LaunchAgent plists and launcher scripts into your dotfiles:
+### Any Platform
+
+The install script builds standalone executables and copies them to a directory on your PATH:
 
 ```bash
-./install.sh          # install only
-./install.sh --load   # install + start agents
-./install.sh --unload # stop agents
+./install.sh                          # install to ~/.local/bin (default)
+./install.sh --prefix /usr/local/bin  # install to a custom location
 ```
 
-What it does:
-1. Builds standalone executables via `bun run build:exe`
-2. Copies `launchd/osx.mcp.*.plist` to `~/.dotfiles/home/Library/LaunchAgents/`
-3. Copies `launchd/launch-agent-*-mcp-http` to `~/.dotfiles/home/.bin/`
-4. Runs `dfm install` to activate symlinks
-5. Optionally loads LaunchAgents via `launchctl`
+After install, the servers are available as `claude-mcp-server`, `codex-mcp-server`, and `copilot-mcp-server` anywhere on your system. Use them directly via stdio or put them behind any HTTP proxy.
+
+### macOS LaunchAgents
+
+For persistent background services on macOS, use the `--launchd` flag:
+
+```bash
+./install.sh --launchd --load         # install binaries + LaunchAgents + start
+./install.sh --launchd                # install without starting
+./install.sh --unload                 # stop agents
+```
+
+This copies the example plists and launcher scripts from `examples/macos/` into your dotfiles structure (`~/.dotfiles/home/`), runs `dfm install`, and optionally loads the agents. Customize the dotfiles root with `--dotfiles DIR`.
 
 ### Port Overrides
 
-Each server reads its port from an environment variable. Override via the env files that `launch-agent-runtime` loads:
+Each server reads its port from an environment variable. On macOS, override via the env files that `launch-agent-runtime` loads:
 
 ```bash
 # ~/.local/share/launch-agent-env/claude-mcp-http.env
@@ -161,14 +172,14 @@ To run multiple instances of the same server on different ports:
 
 1. Copy the plist with a new label:
    ```bash
-   cp launchd/osx.mcp.claude.plist launchd/osx.mcp.claude-2.plist
+   cp examples/macos/osx.mcp.claude.plist examples/macos/osx.mcp.claude-2.plist
    # Edit: change Label to "osx.mcp.claude-2"
    # Edit: change launcher script to "launch-agent-claude-2-mcp-http"
    ```
 
 2. Copy the launcher script:
    ```bash
-   cp launchd/launch-agent-claude-mcp-http launchd/launch-agent-claude-2-mcp-http
+   cp examples/macos/launch-agent-claude-mcp-http examples/macos/launch-agent-claude-2-mcp-http
    # Edit: change setup name to "claude-2-mcp-http"
    ```
 
@@ -179,8 +190,28 @@ To run multiple instances of the same server on different ports:
 
 4. Install and load:
    ```bash
-   ./install.sh --load
+   ./install.sh --launchd --load
    ```
+
+### Linux systemd (Manual)
+
+The servers are standard stdio processes. Wrap with any process manager:
+
+```ini
+# ~/.config/systemd/user/claude-mcp.service
+[Unit]
+Description=Claude MCP Bridge
+After=network.target
+
+[Service]
+ExecStart=%h/.local/bin/claude-mcp-server
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+
+Put `mcp-proxy` in front for HTTP access, or connect directly via stdio.
 
 ## Consumer Configuration
 
