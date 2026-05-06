@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      - run: bun run lint
+
+      - run: bun run test
+
+      - name: Verify binaries compile
+        run: |
+          bun build --compile ./src/claude/server.ts --outfile ./bin/claude-mcp-server-test
+          bun build --compile ./src/codex/server.ts --outfile ./bin/codex-mcp-server-test
+          bun build --compile ./src/copilot/server.ts --outfile ./bin/copilot-mcp-server-test
