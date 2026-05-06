@@ -67,22 +67,24 @@ ok "Build successful"
 mkdir -p "${DOTFILES_BIN}"
 mkdir -p "${DOTFILES_LAUNCH_AGENTS}"
 
-# Symlink plist files
-log "Symlinking LaunchAgent plists..."
+# Copy plist files (launchctl cannot follow symlinks across volumes)
+log "Copying LaunchAgent plists..."
 for plist in "${SCRIPT_DIR}"/launchd/osx.mcp.*.plist; do
   name="$(basename "${plist}")"
   target="${DOTFILES_LAUNCH_AGENTS}/${name}"
-  ln -sf "${plist}" "${target}"
+  rm -f "${target}"
+  cp "${plist}" "${target}"
   ok "${name} → ${target}"
 done
 
-# Symlink launcher scripts
-log "Symlinking launcher scripts..."
+# Copy launcher scripts (same cross-volume issue as plists)
+log "Copying launcher scripts..."
 for script in "${SCRIPT_DIR}"/launchd/launch-agent-*-mcp-http; do
   name="$(basename "${script}")"
   target="${DOTFILES_BIN}/${name}"
-  ln -sf "${script}" "${target}"
-  chmod +x "${script}"
+  rm -f "${target}"
+  cp "${script}" "${target}"
+  chmod +x "${target}"
   ok "${name} → ${target}"
 done
 
