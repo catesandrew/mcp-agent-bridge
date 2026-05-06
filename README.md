@@ -32,7 +32,8 @@ mcp-agent-bridge/
 ├── bin/                 # stdio entry scripts (node)
 ├── exe/                 # Standalone executables (bun build --compile)
 ├── examples/
-│   └── macos/           # LaunchAgent plists + launcher scripts
+│   ├── macos/           # LaunchAgent plists + launcher scripts
+│   └── windows/         # PowerShell installer + env setup
 ├── skills/dual-review/  # Claude Code slash command
 └── install.sh           # Cross-platform installer
 ```
@@ -193,7 +194,67 @@ To run multiple instances of the same server on different ports:
    ./install.sh --launchd --load
    ```
 
-### Linux systemd (Manual)
+### Windows
+
+Use the PowerShell installer in `examples/windows/`:
+
+```powershell
+# Install binaries to %LOCALAPPDATA%\mcp-agent-bridge\bin (added to PATH)
+.\examples\windows\install.ps1
+
+# Or install to a custom location
+.\examples\windows\install.ps1 -Prefix "C:\tools\mcp"
+
+# Register as Windows Services - stdio mode (requires NSSM and admin)
+.\examples\windows\install.ps1 -Service
+
+# Register as Windows Services - HTTP mode with mcp-proxy (requires NSSM, Node.js, and admin)
+.\examples\windows\install.ps1 -HttpService
+
+# Both modes at once
+.\examples\windows\install.ps1 -Service -HttpService
+
+# Remove all services
+.\examples\windows\install.ps1 -Uninstall
+```
+
+**Stdio services** (`-Service`) register each server as a background process. Connect via stdio in your MCP client config.
+
+**HTTP services** (`-HttpService`) wrap each server behind `mcp-proxy` on its configured port, accessible at `http://127.0.0.1:<port>/mcp`. This is the equivalent of the macOS LaunchAgent setup.
+
+Both use [NSSM](https://nssm.cc/) (`choco install nssm` or `scoop install nssm`). Logs go to `%LOCALAPPDATA%\mcp-agent-bridge\logs\`.
+
+#### Environment Variables (PowerShell)
+
+Configure all servers at once:
+
+```powershell
+# Apply defaults
+.\examples\windows\env-setup.ps1
+
+# Custom settings
+.\examples\windows\env-setup.ps1 -ClaudeModel sonnet -ClaudePort 9940
+
+# View current settings
+.\examples\windows\env-setup.ps1 -Show
+
+# Remove all
+.\examples\windows\env-setup.ps1 -Remove
+```
+
+Or set individually in PowerShell:
+
+```powershell
+# Session only
+$env:CLAUDE_REVIEW_MODEL = "sonnet"
+$env:CLAUDE_MCP_HTTP_PORT = "9940"
+
+# Persistent (survives terminal restart)
+[Environment]::SetEnvironmentVariable("CLAUDE_REVIEW_MODEL", "sonnet", "User")
+[Environment]::SetEnvironmentVariable("CLAUDE_MCP_HTTP_PORT", "9940", "User")
+```
+
+### Linux systemd
 
 The servers are standard stdio processes. Wrap with any process manager:
 
@@ -206,9 +267,16 @@ After=network.target
 [Service]
 ExecStart=%h/.local/bin/claude-mcp-server
 Restart=on-failure
+Environment=CLAUDE_REVIEW_MODEL=opus
+Environment=CLAUDE_REVIEW_ALLOWED_TOOLS=Read,Grep,Glob,LS
 
 [Install]
 WantedBy=default.target
+```
+
+```bash
+systemctl --user enable claude-mcp.service
+systemctl --user start claude-mcp.service
 ```
 
 Put `mcp-proxy` in front for HTTP access, or connect directly via stdio.
