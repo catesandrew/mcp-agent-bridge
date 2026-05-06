@@ -63,10 +63,46 @@ export function validateCwd(cwd: string | undefined): string | undefined {
   return resolved;
 }
 
-function buildArgs(
-  prompt: string,
-  options: ClaudeRunnerOptions,
-): string[] {
+/**
+ * Extract the result entry from claude JSON output, which may be a single
+ * object or an array of event objects (when --verbose is used).
+ */
+function extractResultEntry(parsed: unknown): ClaudeJsonOutput {
+  // Array format: find the entry with type === "result"
+  if (Array.isArray(parsed)) {
+    const resultEntry = parsed.find(
+      (entry: unknown) =>
+        entry &&
+        typeof entry === "object" &&
+        "type" in entry &&
+        (entry as Record<string, unknown>).type === "result",
+    );
+    if (
+      !resultEntry ||
+      typeof resultEntry !== "object" ||
+      !("result" in resultEntry)
+    ) {
+      throw new Error(
+        "No result entry found in claude output array",
+      );
+    }
+    return resultEntry as ClaudeJsonOutput;
+  }
+
+  // Single object format
+  if (
+    parsed &&
+    typeof parsed === "object" &&
+    "result" in parsed &&
+    "session_id" in parsed
+  ) {
+    return parsed as ClaudeJsonOutput;
+  }
+
+  throw new Error("Unexpected claude output structure");
+}
+
+function buildArgs(options: ClaudeRunnerOptions): string[] {
   const args: string[] = ["-p", "--output-format", "json", "--verbose"];
 
   const permissionMode =
@@ -90,8 +126,6 @@ function buildArgs(
       ? options.allowedTools
       : DEFAULT_ALLOWED_TOOLS;
   args.push("--allowedTools", tools.join(","));
-
-  args.push(prompt);
 
   return args;
 }
@@ -121,13 +155,17 @@ export async function runClaude(
 ): Promise<ClaudeJsonOutput> {
   const envConfig = getEnvConfig();
   const merged: ClaudeRunnerOptions = { ...envConfig, ...options };
-  const args = buildArgs(prompt, merged);
+  const args = buildArgs(merged);
 
   return new Promise<ClaudeJsonOutput>((resolve, reject) => {
     const proc = spawn("claude", args, {
       stdio: ["pipe", "pipe", "pipe"],
       cwd: merged.cwd,
     });
+
+    // Write prompt via stdin — claude -p reads from stdin when no positional arg
+    proc.stdin.write(prompt);
+    proc.stdin.end();
 
     let stdout = "";
     let stderr = "";
@@ -177,15 +215,7 @@ export async function runClaude(
 
         try {
           const parsed: unknown = JSON.parse(stdout);
-          if (
-            !parsed ||
-            typeof parsed !== "object" ||
-            !("result" in parsed) ||
-            !("session_id" in parsed)
-          ) {
-            throw new Error("Unexpected claude output structure");
-          }
-          resolve(parsed as ClaudeJsonOutput);
+          resolve(extractResultEntry(parsed));
         } catch (err) {
           reject(
             new Error(
@@ -230,17 +260,17 @@ export async function runClaudeReview(
 
 ${prompt}`;
 
-  const args = buildArgs(reviewPrompt, merged);
-
-  // Insert --json-schema before the prompt (last element)
-  const promptArg = args.pop()!;
-  args.push("--json-schema", schemaStr, promptArg);
+  const args = buildArgs(merged);
+  args.push("--json-schema", schemaStr);
 
   return new Promise<ReviewResult>((resolve, reject) => {
     const proc = spawn("claude", args, {
       stdio: ["pipe", "pipe", "pipe"],
       cwd: merged.cwd,
     });
+
+    proc.stdin.write(reviewPrompt);
+    proc.stdin.end();
 
     let stdout = "";
     let stderr = "";
@@ -289,12 +319,19 @@ ${prompt}`;
         }
 
         try {
-          const output: unknown = JSON.parse(stdout);
-          if (!output || typeof output !== "object" || !("result" in output)) {
-            throw new Error("Unexpected claude output structure");
+          const parsed: unknown = JSON.parse(stdout);
+          const output = extractResultEntry(parsed);
+
+          // --json-schema puts the result in structured_output, not result
+          let review: unknown;
+          if (output.structured_output !== undefined) {
+            review = output.structured_output;
+          } else if (output.result) {
+            review = JSON.parse(output.result);
+          } else {
+            throw new Error("No review content in claude output");
           }
-          const resultStr = (output as ClaudeJsonOutput).result;
-          const review: unknown = JSON.parse(resultStr);
+
           if (
             !review ||
             typeof review !== "object" ||

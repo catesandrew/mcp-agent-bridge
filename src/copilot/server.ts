@@ -1,12 +1,96 @@
+import { z } from "zod";
+import { spawn } from "node:child_process";
 import { createServer, startServer } from "../shared/server-factory.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
+/** Parsed response from a `copilot -p` invocation. */
+interface CopilotResult {
+  text: string;
+  exitCode: number;
+}
+
 /**
- * Create the Copilot MCP bridge placeholder server.
+ * Extract the final assistant message content from Copilot JSONL output.
  *
- * Registers a single `status` tool that reports Copilot CLI MCP support
- * is not yet available. This server will be updated when `copilot-cli
- * mcp-server` is released.
+ * Copilot `--output-format json` emits one JSON object per line (JSONL).
+ * The last `assistant.message` entry with a non-empty `content` field
+ * contains the final response.
+ */
+function parseCopilotOutput(stdout: string): string {
+  const lines = stdout.trim().split("\n");
+  let lastContent = "";
+
+  for (const line of lines) {
+    try {
+      const event: unknown = JSON.parse(line);
+      if (
+        event &&
+        typeof event === "object" &&
+        "type" in event &&
+        (event as Record<string, unknown>).type === "assistant.message" &&
+        "data" in event
+      ) {
+        const data = (event as Record<string, unknown>).data;
+        if (data && typeof data === "object" && "content" in data) {
+          const content = (data as Record<string, unknown>).content;
+          if (typeof content === "string" && content.length > 0) {
+            lastContent = content;
+          }
+        }
+      }
+    } catch {
+      // Skip non-JSON lines
+    }
+  }
+
+  return lastContent;
+}
+
+async function runCopilot(prompt: string): Promise<CopilotResult> {
+  return new Promise<CopilotResult>((resolve, reject) => {
+    const proc = spawn("copilot", ["-p", prompt, "--output-format", "json"], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let settled = false;
+
+    proc.on("error", (err: Error) => {
+      if (!settled) {
+        settled = true;
+        reject(new Error(`Failed to spawn copilot: ${err.message}`));
+      }
+    });
+
+    proc.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+
+    proc.on("close", (code: number | null) => {
+      if (settled) return;
+      settled = true;
+
+      if (code !== 0) {
+        reject(new Error(`copilot exited with code ${code ?? "null"}`));
+        return;
+      }
+
+      const text = parseCopilotOutput(stdout);
+      if (!text) {
+        reject(new Error("No assistant response found in copilot output"));
+        return;
+      }
+
+      resolve({ text, exitCode: code ?? 0 });
+    });
+  });
+}
+
+/**
+ * Create the Copilot MCP bridge server with `ask` and `code_review` tools.
+ *
+ * Each tool spawns `copilot -p` with `--output-format json` and extracts
+ * the assistant's response from the JSONL stream.
  *
  * @returns A configured {@link McpServer} ready to connect to a transport.
  */
@@ -15,24 +99,73 @@ export function createCopilotServer(): McpServer {
     name: "copilot-mcp-bridge",
     version: "0.1.0",
     description:
-      "Placeholder MCP server for GitHub Copilot CLI (not yet available)",
+      "Wraps GitHub Copilot CLI as MCP tools for questions and code review",
   });
 
   server.registerTool(
-    "status",
+    "ask",
     {
-      title: "Copilot Status",
+      title: "Ask Copilot",
       description:
-        "Returns the current status of the Copilot MCP bridge. Currently a placeholder.",
+        "Ask GitHub Copilot a freeform question. Returns text.",
+      inputSchema: {
+        question: z.string().max(500_000).describe("The question to ask"),
+      },
     },
-    async () => {
+    async ({ question }) => {
+      const result = await runCopilot(question);
       return {
-        content: [
-          {
-            type: "text" as const,
-            text: "GitHub Copilot CLI MCP support is not yet available. This server is a placeholder that will be updated when copilot-cli mcp-server support is released.",
-          },
-        ],
+        content: [{ type: "text" as const, text: result.text }],
+      };
+    },
+  );
+
+  server.registerTool(
+    "code_review",
+    {
+      title: "Code Review",
+      description:
+        "Send a git diff or code snippet to Copilot for review. Returns structured JSON when possible, raw text otherwise.",
+      inputSchema: {
+        diff: z
+          .string()
+          .max(500_000)
+          .describe("The git diff or code to review"),
+        context: z
+          .string()
+          .optional()
+          .describe("Additional context about the changes"),
+      },
+    },
+    async ({ diff, context }) => {
+      const reviewPrompt = `You are a code reviewer. Review the following and respond with ONLY valid JSON matching this exact schema (no markdown fencing, no extra text):
+{"verdict": "APPROVED" or "NEEDS_REVISION", "issues": [{"severity": "critical" or "major" or "minor", "description": "...", "recommendation": "..."}], "suggestions": ["..."]}
+
+${context ? `Context: ${context}\n\n` : ""}${diff}`;
+
+      const result = await runCopilot(reviewPrompt);
+
+      // Try to parse as structured JSON; fall back to raw text
+      try {
+        const parsed: unknown = JSON.parse(result.text);
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          "verdict" in parsed &&
+          "issues" in parsed
+        ) {
+          return {
+            content: [
+              { type: "text" as const, text: JSON.stringify(parsed, null, 2) },
+            ],
+          };
+        }
+      } catch {
+        // Copilot doesn't support schema-constrained output
+      }
+
+      return {
+        content: [{ type: "text" as const, text: result.text }],
       };
     },
   );

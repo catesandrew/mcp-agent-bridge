@@ -187,6 +187,33 @@ describe("runClaude", () => {
     );
   });
 
+  it("handles array output format from --verbose", async () => {
+    const arrayOutput = [
+      { type: "system", subtype: "init", session_id: "sess-arr" },
+      { type: "assistant", message: { content: [{ type: "text", text: "hi" }] } },
+      {
+        type: "result",
+        subtype: "success",
+        cost_usd: 0.01,
+        is_error: false,
+        duration_ms: 500,
+        duration_api_ms: 400,
+        num_turns: 1,
+        result: "Array response",
+        session_id: "sess-arr",
+      },
+    ];
+
+    vi.mocked(spawn).mockReturnValue(
+      createMockProcess(JSON.stringify(arrayOutput)),
+    );
+
+    const result = await runClaude("test prompt");
+
+    expect(result.result).toBe("Array response");
+    expect(result.session_id).toBe("sess-arr");
+  });
+
   it("rejects on non-zero exit code", async () => {
     vi.mocked(spawn).mockReturnValue(
       createMockProcess("", 1),

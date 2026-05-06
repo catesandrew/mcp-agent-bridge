@@ -93,10 +93,15 @@ export interface ClaudeJsonOutput {
   duration_ms: number;
   duration_api_ms: number;
   num_turns: number;
-  /** The model's text response. May be nested JSON for schema-constrained calls. */
+  /** The model's text response. Empty when `--json-schema` is used. */
   result: string;
   /** Opaque session identifier for use with `--resume`. */
   session_id: string;
+  /**
+   * Structured output when `--json-schema` constrains the response.
+   * Present instead of `result` for schema-constrained calls.
+   */
+  structured_output?: unknown;
 }
 
 /**

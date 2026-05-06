@@ -3,19 +3,20 @@ import { spawn } from "node:child_process";
 import { createServer, startServer } from "../shared/server-factory.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-/** Parsed output from a `codex --quiet` invocation. */
+/** Parsed output from a `codex exec` invocation. */
 interface CodexResult {
   /** Trimmed stdout from the Codex CLI. */
   text: string;
-  /** Reserved for future session-based continuation. */
-  conversationId?: string;
 }
 
 async function runCodex(prompt: string): Promise<CodexResult> {
   return new Promise<CodexResult>((resolve, reject) => {
-    const proc = spawn("codex", ["--quiet", prompt], {
+    const proc = spawn("codex", ["exec"], {
       stdio: ["pipe", "pipe", "pipe"],
     });
+
+    proc.stdin.write(prompt);
+    proc.stdin.end();
 
     let stdout = "";
     let settled = false;
@@ -79,6 +80,56 @@ export function createCodexServer(): McpServer {
     },
     async ({ prompt }) => {
       const result = await runCodex(prompt);
+
+      return {
+        content: [{ type: "text" as const, text: result.text }],
+      };
+    },
+  );
+
+  server.registerTool(
+    "code_review",
+    {
+      title: "Code Review",
+      description:
+        "Send a git diff or code snippet to Codex for structured review. Returns JSON with verdict, issues, and suggestions when possible.",
+      inputSchema: {
+        diff: z
+          .string()
+          .max(500_000)
+          .describe("The git diff or code to review"),
+        context: z
+          .string()
+          .optional()
+          .describe("Additional context about the changes"),
+      },
+    },
+    async ({ diff, context }) => {
+      const reviewPrompt = `You are a code reviewer. Review the following and respond with ONLY valid JSON matching this exact schema (no markdown fencing, no extra text):
+{"verdict": "APPROVED" or "NEEDS_REVISION", "issues": [{"severity": "critical" or "major" or "minor", "description": "...", "recommendation": "..."}], "suggestions": ["..."]}
+
+${context ? `Context: ${context}\n\n` : ""}${diff}`;
+
+      const result = await runCodex(reviewPrompt);
+
+      // Try to parse as structured JSON; fall back to raw text
+      try {
+        const parsed: unknown = JSON.parse(result.text);
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          "verdict" in parsed &&
+          "issues" in parsed
+        ) {
+          return {
+            content: [
+              { type: "text" as const, text: JSON.stringify(parsed, null, 2) },
+            ],
+          };
+        }
+      } catch {
+        // Codex doesn't support schema-constrained output, so raw text is expected
+      }
 
       return {
         content: [{ type: "text" as const, text: result.text }],
