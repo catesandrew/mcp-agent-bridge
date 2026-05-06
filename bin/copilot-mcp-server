@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+import("../dist/copilot/server.js").catch((err) => {
+  console.error("Failed to start Copilot MCP server:", err);
+  process.exit(1);
+});

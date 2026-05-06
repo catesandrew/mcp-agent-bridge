@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+import("../dist/claude/server.js").catch((err) => {
+  console.error("Failed to start Claude MCP server:", err);
+  process.exit(1);
+});

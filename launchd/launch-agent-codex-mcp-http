@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# shellcheck source=/dev/null
+. "${HOME}/.bin/launch-agent-runtime"
+
+launch_agent_setup_node "codex-mcp-http"
+launch_agent_require_command codex
+
+codex_mcp_port="${CODEX_MCP_HTTP_PORT:-8941}"
+codex_mcp_stream_endpoint="${CODEX_MCP_STREAM_ENDPOINT:-/mcp}"
+
+exec npx -y mcp-proxy@6.4.4 \
+  --host 127.0.0.1 \
+  --port "${codex_mcp_port}" \
+  --server stream \
+  --streamEndpoint "${codex_mcp_stream_endpoint}" \
+  -- \
+  codex mcp-server

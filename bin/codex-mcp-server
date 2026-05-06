@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Passthrough to codex mcp-server — Codex natively exposes codex and codex-reply tools
+exec codex mcp-server "$@"

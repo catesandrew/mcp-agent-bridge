@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# shellcheck source=/dev/null
+. "${HOME}/.bin/launch-agent-runtime"
+
+launch_agent_setup_node "copilot-mcp-http"
+# TODO: uncomment when copilot-cli is available
+# launch_agent_require_command copilot-cli
+
+copilot_mcp_port="${COPILOT_MCP_HTTP_PORT:-8942}"
+copilot_mcp_stream_endpoint="${COPILOT_MCP_STREAM_ENDPOINT:-/mcp}"
+copilot_mcp_server_path="${COPILOT_MCP_SERVER_PATH:-/Volumes/dev-ssd/repos/personal/mcp-agent-bridge/dist/copilot/server.js}"
+
+exec npx -y mcp-proxy@6.4.4 \
+  --host 127.0.0.1 \
+  --port "${copilot_mcp_port}" \
+  --server stream \
+  --streamEndpoint "${copilot_mcp_stream_endpoint}" \
+  -- \
+  node "${copilot_mcp_server_path}"

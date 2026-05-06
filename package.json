@@ -1,0 +1,30 @@
+{
+  "name": "mcp-agent-bridge",
+  "version": "0.1.0",
+  "description": "Bridges AI coding agents (Claude Code, OpenAI Codex, GitHub Copilot) as MCP servers behind HTTP proxies",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "bin": {
+    "claude-mcp-server": "./bin/claude-mcp-server",
+    "codex-mcp-server": "./bin/codex-mcp-server",
+    "copilot-mcp-server": "./bin/copilot-mcp-server"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.1"
+  }
+}
