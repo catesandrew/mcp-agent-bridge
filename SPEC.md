@@ -134,7 +134,7 @@ Or for direct stdio usage (without the proxy):
     "claude_reviewer": {
       "type": "stdio",
       "command": "node",
-      "args": ["/Volumes/dev-ssd/repos/personal/mcp-agent-bridge/src/claude/server.mjs"],
+      "args": ["./src/claude/server.mjs"],
       "env": { "CLAUDE_REVIEW_MODEL": "opus" }
     }
   }

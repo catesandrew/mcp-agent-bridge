@@ -2,3 +2,10 @@ node_modules/
 dist/
 exe/
 *.tsbuildinfo
+.omc/
+.omx/
+.env
+.env.*
+website/build/
+website/.docusaurus/
+website/.cache-loader/

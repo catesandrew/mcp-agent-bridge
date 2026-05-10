@@ -2,6 +2,7 @@
   "name": "mcp-agent-bridge",
   "version": "0.1.0",
   "description": "Bridges AI coding agents (Claude Code, OpenAI Codex, GitHub Copilot) as MCP servers behind HTTP proxies",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=20.0.0"
