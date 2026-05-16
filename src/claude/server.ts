@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createServer, startServer } from "../shared/server-factory.js";
 import { runClaude, runClaudeReview, validateCwd } from "./claude-runner.js";
 import { buildCoverLetterPrompt } from "../shared/cover-letter-skill.js";
+import { buildCreativePortfolioResumePrompt } from "../shared/creative-portfolio-resume-skill.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ReviewResult } from "../shared/types.js";
 
@@ -148,6 +149,65 @@ export function createClaudeServer(): McpServer {
         jobDescription: job_description,
         companyName: company_name,
         roleTitle: role_title,
+        additionalContext: additional_context,
+      });
+
+      const result = await runClaude(prompt);
+
+      return {
+        content: [{ type: "text" as const, text: result.result }],
+      };
+    },
+  );
+
+  server.registerTool(
+    "creative_portfolio_resume",
+    {
+      title: "Creative Portfolio Resume Generator",
+      description:
+        "Generate both an ATS-compatible and a designed resume for creative professionals (graphic designers, UX, marketing, writers, photographers, etc.). Returns both versions plus field-specific tips and portfolio link strategy.",
+      inputSchema: {
+        experience: z
+          .string()
+          .max(50_000)
+          .describe("Work experience and employment history"),
+        skills: z
+          .string()
+          .max(10_000)
+          .describe("Technical, creative, and soft skills"),
+        field: z
+          .enum([
+            "graphic_design",
+            "ux_product_design",
+            "marketing_brand",
+            "writing",
+            "photography_video",
+            "other",
+          ])
+          .describe("The candidate's creative field"),
+        target_role: z
+          .string()
+          .optional()
+          .describe("Specific role or type of role being targeted"),
+        portfolio_url: z
+          .string()
+          .optional()
+          .describe("URL to the candidate's portfolio"),
+        additional_context: z
+          .string()
+          .optional()
+          .describe(
+            "Optional: awards, publications, education, or other relevant details",
+          ),
+      },
+    },
+    async ({ experience, skills, field, target_role, portfolio_url, additional_context }) => {
+      const prompt = buildCreativePortfolioResumePrompt({
+        experience,
+        skills,
+        field,
+        targetRole: target_role,
+        portfolioUrl: portfolio_url,
         additionalContext: additional_context,
       });
 
