@@ -92,7 +92,21 @@ describe("Copilot MCP Server", () => {
     expect(toolNames).toContain("code_review");
     expect(toolNames).toContain("cover_letter_generator");
     expect(toolNames).toContain("creative_portfolio_resume");
-    expect(tools).toHaveLength(4);
+    expect(toolNames).toContain("executive_resume_writer");
+    expect(toolNames).toContain("interview_prep_generator");
+    expect(toolNames).toContain("job_description_analyzer");
+    expect(toolNames).toContain("linkedin_profile_optimizer");
+    expect(toolNames).toContain("portfolio_case_study_writer");
+    expect(toolNames).toContain("reference_list_builder");
+    expect(toolNames).toContain("resume_ats_optimizer");
+    expect(toolNames).toContain("resume_bullet_writer");
+    expect(toolNames).toContain("resume_formatter");
+    expect(toolNames).toContain("resume_quantifier");
+    expect(toolNames).toContain("resume_section_builder");
+    expect(toolNames).toContain("resume_tailor");
+    expect(toolNames).toContain("resume_version_manager");
+    expect(toolNames).toContain("tech_resume_optimizer");
+    expect(tools).toHaveLength(18);
   });
 
   describe("ask tool", () => {
