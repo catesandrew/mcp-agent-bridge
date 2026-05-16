@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Claude Tools API
 
-The Claude MCP server exposes nineteen tools. All tools are registered under the `claude_reviewer` server name (configurable in your `.mcp.json`).
+The Claude MCP server exposes twenty-one tools. All tools are registered under the `claude_reviewer` server name (configurable in your `.mcp.json`).
 
 ## review
 
@@ -123,7 +123,31 @@ Same `ReviewResult` structure as the `review` tool.
 
 ## Resume & Career Tools
 
-All 16 tools below are also available on the Codex and Copilot servers with identical parameters. All return plain text with structured AI-generated content. For full methodology details and usage examples, see [SKILLS.md](https://github.com/catesandrew/mcp-agent-bridge/blob/main/SKILLS.md) and the [Resume Tools Guide](../guides/resume-tools).
+All 18 tools below are also available on the Codex and Copilot servers with identical parameters. All return plain text with structured AI-generated content. For full methodology details and usage examples, see [SKILLS.md](https://github.com/catesandrew/mcp-agent-bridge/blob/main/SKILLS.md) and the [Resume Tools Guide](../guides/resume-tools).
+
+## career_fact_extractor
+
+Extract a structured, fact-ID-tagged database of career facts from any source material. Use before `resume_tailor` to enforce truthful, evidence-mapped tailoring.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `source_material` | string | Yes | Resume, LinkedIn profile, brag doc, performance reviews, project notes — any source of career information (max 100KB) |
+| `additional_context` | string | No | Target role, industry, or any other relevant context |
+
+### Example
+
+```json
+{
+  "source_material": "Jane Smith, Senior PM at Acme 2021–2024. Led checkout redesign, cart abandonment dropped from 68% to 41%...",
+  "additional_context": "Targeting Staff PM roles at Series B startups"
+}
+```
+
+### Workflow
+
+Run `career_fact_extractor` first, then pass its output as the `career_facts` parameter to `resume_tailor` for fully evidence-mapped tailoring.
 
 ## cover_letter_generator
 
@@ -328,7 +352,7 @@ Build targeted resume sections (summary, skills, experience, education) tailored
 
 ## resume_tailor
 
-Tailor a master resume to a specific job posting by selecting and emphasizing relevant experience.
+Tailor a master resume to a specific job posting by selecting and emphasizing relevant experience. When `career_facts` is provided, every tailored bullet maps to a source fact ID — producing an evidence map, a list of removed unsupported claims, and questions for missing proof.
 
 ### Parameters
 
@@ -338,16 +362,41 @@ Tailor a master resume to a specific job posting by selecting and emphasizing re
 | `job_description` | string | Yes | Full job posting text |
 | `company_name` | string | Yes | Target company |
 | `role_title` | string | Yes | Role being applied for |
+| `career_facts` | string | No | Fact-ID-tagged output from `career_fact_extractor` — enables evidence map and removed-claims output |
 | `additional_context` | string | No | Any additional information |
 
-### Example
+### Example (with evidence map)
 
 ```json
 {
   "resume": "[master resume text]",
   "job_description": "[full job posting]",
   "company_name": "Stripe",
-  "role_title": "Engineering Manager"
+  "role_title": "Engineering Manager",
+  "career_facts": "[output from career_fact_extractor]"
+}
+```
+
+## recruiter_first_screen_simulation
+
+Simulate a skeptical hiring manager's 45-second resume screen. Returns a Yes/Maybe/No decision, scores across 6 dimensions, and exact text to rewrite before applying.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `resume` | string | Yes | The resume to screen (max 50KB) |
+| `job_description` | string | Yes | The job description for the role (max 20KB) |
+| `seniority_level` | string | No | Expected seniority level for calibration (e.g. `senior`, `staff`, `director`) |
+| `additional_context` | string | No | Any additional context for the simulation |
+
+### Example
+
+```json
+{
+  "resume": "[full resume text]",
+  "job_description": "[full job posting text]",
+  "seniority_level": "senior"
 }
 ```
 

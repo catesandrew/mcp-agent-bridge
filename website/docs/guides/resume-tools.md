@@ -10,6 +10,7 @@ MCP Agent Bridge includes 16 resume and career tools available on all three MCP 
 
 | Tool | Purpose |
 |------|---------|
+| `career_fact_extractor` | Extract a fact-ID-tagged career database from any source material |
 | `cover_letter_generator` | Personalized cover letters with match analysis |
 | `creative_portfolio_resume` | ATS + designed resume for creative professionals |
 | `executive_resume_writer` | C-suite, VP, and Director-level resumes |
@@ -24,10 +25,46 @@ MCP Agent Bridge includes 16 resume and career tools available on all three MCP 
 | `resume_quantifier` | Add metrics using estimation methodology |
 | `resume_section_builder` | Build targeted sections by career stage |
 | `resume_tailor` | Tailor a master resume to a specific posting |
+| `recruiter_first_screen_simulation` | Simulate a skeptical hiring manager's 45-second resume screen |
 | `resume_version_manager` | Organize and track multiple resume versions |
 | `tech_resume_optimizer` | Optimize for software engineering and technical roles |
 
 ## Usage Examples
+
+### Extract Career Facts (before tailoring)
+
+```json
+{
+  "tool": "career_fact_extractor",
+  "arguments": {
+    "source_material": "Jane Smith\nSenior PM at Acme 2021-2024. Led checkout redesign, cart abandonment dropped from 68% to 41%...\n[paste resume, LinkedIn, brag doc, etc.]",
+    "additional_context": "Targeting Staff PM roles at Series B startups"
+  }
+}
+```
+
+**Output includes:** Fact list with IDs (FACT-001…), categories, source text, confidence ratings, gaps (e.g. no leadership evidence), and fabrication risks.
+
+Pass the output as `career_facts` to `resume_tailor` for evidence-mapped, verifiable tailoring.
+
+---
+
+### Simulate a Recruiter First Screen
+
+```json
+{
+  "tool": "recruiter_first_screen_simulation",
+  "arguments": {
+    "resume": "[full resume text]",
+    "job_description": "[full job posting text]",
+    "seniority_level": "senior"
+  }
+}
+```
+
+**Output includes:** Yes/Maybe/No decision, top 5 reasons, top 5 concerns, strongest evidence, weakest sections (with specific text), missing seniority signals, exact rewrites to make, and scores across 6 dimensions (role fit, clarity, seniority signal, impact, credibility, keyword alignment).
+
+---
 
 ### Generate a Cover Letter
 
@@ -81,7 +118,7 @@ MCP Agent Bridge includes 16 resume and career tools available on all three MCP 
 
 ---
 
-### Tailor a Resume
+### Tailor a Resume (with evidence map)
 
 ```json
 {
@@ -90,12 +127,15 @@ MCP Agent Bridge includes 16 resume and career tools available on all three MCP 
     "resume": "[master resume text]",
     "job_description": "[full job posting text]",
     "company_name": "Stripe",
-    "role_title": "Engineering Manager"
+    "role_title": "Engineering Manager",
+    "career_facts": "[output from career_fact_extractor]"
   }
 }
 ```
 
-**Output includes:** Keyword extraction, resume audit, tailored summary, reordered skills, top 3 bullet rewrites, sections to add/remove, cover letter red flags, pre-submission checklist.
+**Output includes:** Keyword extraction, resume audit, tailored summary, reordered skills, bullet rewrites, sections to add/remove, cover letter red flags, **evidence map** (each bullet → source Fact IDs), **removed claims** (unsupported claims dropped), **questions for missing proof**, and pre-submission checklist.
+
+Omit `career_facts` to tailor without the evidence map.
 
 ---
 
@@ -211,8 +251,11 @@ MCP Agent Bridge includes 16 resume and career tools available on all three MCP 
 
 | Situation | Recommended Tool(s) |
 |-----------|---------------------|
-| Applying to a specific role | `job_description_analyzer` → `resume_tailor` → `cover_letter_generator` |
+| Applying to a specific role (full workflow) | `career_fact_extractor` → `resume_tailor` → `recruiter_first_screen_simulation` → `cover_letter_generator` |
+| Applying to a specific role (quick) | `resume_tailor` → `cover_letter_generator` |
+| Worried about fabrication / want evidence map | `career_fact_extractor` → `resume_tailor` (with `career_facts`) |
 | Resume not getting past ATS | `resume_ats_optimizer` |
+| Want honest recruiter feedback | `recruiter_first_screen_simulation` |
 | Bullets feel weak or generic | `resume_bullet_writer` or `resume_quantifier` |
 | Preparing for interviews | `interview_prep_generator` |
 | Building resume from scratch | `resume_section_builder` |

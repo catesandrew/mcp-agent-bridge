@@ -68,6 +68,7 @@ All three servers include 16 resume and career tools powered by embedded skill m
 
 | Tool | Purpose |
 |------|---------|
+| `career_fact_extractor` | Extract a fact-ID-tagged career database from any source material |
 | `cover_letter_generator` | Personalized cover letters with match analysis and talking points |
 | `creative_portfolio_resume` | ATS + designed resume for creative professionals |
 | `executive_resume_writer` | C-suite, VP, and Director-level transformation-story resumes |
@@ -82,6 +83,7 @@ All three servers include 16 resume and career tools powered by embedded skill m
 | `resume_quantifier` | Add metrics to every bullet using estimation methodology |
 | `resume_section_builder` | Build targeted sections by career stage |
 | `resume_tailor` | Tailor a master resume to a specific job posting |
+| `recruiter_first_screen_simulation` | Simulate a skeptical hiring manager's 45-second resume screen |
 | `resume_version_manager` | Organize and track multiple resume versions with naming conventions |
 | `tech_resume_optimizer` | Optimize for software engineering, data, DevOps, and technical PM roles |
 

@@ -106,7 +106,9 @@ describe("Copilot MCP Server", () => {
     expect(toolNames).toContain("resume_tailor");
     expect(toolNames).toContain("resume_version_manager");
     expect(toolNames).toContain("tech_resume_optimizer");
-    expect(tools).toHaveLength(18);
+    expect(toolNames).toContain("career_fact_extractor");
+    expect(toolNames).toContain("recruiter_first_screen_simulation");
+    expect(tools).toHaveLength(20);
   });
 
   describe("ask tool", () => {

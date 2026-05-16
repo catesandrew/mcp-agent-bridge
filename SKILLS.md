@@ -6,6 +6,7 @@ All 16 resume and career tools embedded in MCP Agent Bridge. Each tool hard-code
 
 | Tool | Purpose |
 |------|---------|
+| [`career_fact_extractor`](#career_fact_extractor) | Extract a fact-ID-tagged career database from any source material |
 | [`cover_letter_generator`](#cover_letter_generator) | Personalized, research-driven cover letters |
 | [`creative_portfolio_resume`](#creative_portfolio_resume) | ATS + designed resume for creative professionals |
 | [`executive_resume_writer`](#executive_resume_writer) | C-suite, VP, and Director-level resumes |
@@ -20,10 +21,38 @@ All 16 resume and career tools embedded in MCP Agent Bridge. Each tool hard-code
 | [`resume_quantifier`](#resume_quantifier) | Add metrics to every bullet using estimation methodology |
 | [`resume_section_builder`](#resume_section_builder) | Build targeted resume sections by career stage |
 | [`resume_tailor`](#resume_tailor) | Tailor a master resume to a specific job posting |
+| [`recruiter_first_screen_simulation`](#recruiter_first_screen_simulation) | Simulate a skeptical hiring manager's 45-second resume screen |
 | [`resume_version_manager`](#resume_version_manager) | Organize and track multiple resume versions |
 | [`tech_resume_optimizer`](#tech_resume_optimizer) | Optimize resumes for technical roles |
 
 All tools are available on all three MCP servers (Claude, Codex, Copilot). All return plain text with structured AI-generated content.
+
+---
+
+## career_fact_extractor
+
+**Purpose:** Extract a structured, fact-ID-tagged database of career facts from any source material (resume, LinkedIn profile, brag document, performance reviews, project notes). Designed to feed into `resume_tailor` to enforce truthfulness — no tailoring from unverified claims.
+
+**Methodology highlights:**
+- Every fact gets a Fact ID (e.g. FACT-001), category, exact claim, source text, and confidence level
+- Confidence: high (explicit with specifics) / medium (reasonable inference) / low (vague, unverifiable)
+- Returns a gaps analysis (career dimensions with no supporting facts) and fabrication risks (areas where a writer might be tempted to invent details)
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `source_material` | string | Yes | Resume, LinkedIn profile, brag doc, performance reviews, project notes — any source of career information (max 100KB) |
+| `additional_context` | string | No | Target role, industry, or any other relevant context |
+
+### Output Sections
+1. **Fact list** — each fact with ID, category, exact claim, source text, confidence, and missing detail
+2. **Summary** — total facts by category
+3. **Gaps** — important career dimensions with no supporting facts
+4. **Fabrication risks** — areas to watch when tailoring
+
+### Workflow tip
+Run `career_fact_extractor` first, then pass the output as the `career_facts` parameter to `resume_tailor` for evidence-mapped, verifiable tailoring.
 
 ---
 
@@ -426,6 +455,7 @@ All tools are available on all three MCP servers (Claude, Codex, Copilot). All r
 | `job_description` | string | Yes | Full job posting text |
 | `company_name` | string | Yes | Target company |
 | `role_title` | string | Yes | Role being applied for |
+| `career_facts` | string | No | Fact-ID-tagged output from `career_fact_extractor` — when provided, all tailored bullets must map to a fact ID |
 | `additional_context` | string | No | Any additional information |
 
 ### Output Sections
@@ -433,10 +463,47 @@ All tools are available on all three MCP servers (Claude, Codex, Copilot). All r
 2. **Resume Audit** — match analysis against this specific role
 3. **Tailored Professional Summary**
 4. **Skills Section** — reordered with gaps addressed
-5. **Top 3 Bullet Rewrites**
+5. **Top 3-5 Bullet Rewrites**
 6. **Sections to Add or Remove**
 7. **Red Flags for Cover Letter**
-8. **Pre-Submission Checklist** — 10-point verification
+8. **Evidence Map** — each tailored bullet mapped to source fact ID(s)
+9. **Removed Claims** — unsupported claims that were dropped
+10. **Questions for Missing Proof** — metrics or evidence that would strengthen the resume
+11. **Pre-Submission Checklist** — 10-point verification
+
+### Workflow tip
+For maximum truthfulness, run `career_fact_extractor` first and pass its output as `career_facts`. The evidence map in the output then shows every bullet's source.
+
+---
+
+## recruiter_first_screen_simulation
+
+**Purpose:** Simulate a skeptical hiring manager's 45-second first-screen review. Returns a Yes/Maybe/No decision, top reasons and concerns, scores across 6 dimensions, and the exact text to rewrite before applying.
+
+**Methodology highlights:**
+- Calibrated for a 200-resume pile where only 15 advance — no patience for vague bullets or unsupported claims
+- Scores: role fit, clarity, seniority signal, impact, credibility, keyword alignment
+- Points to exact text in the resume, not generic feedback
+- Identifies what is missing for the expected seniority level
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `resume` | string | Yes | The resume to screen (max 50KB) |
+| `job_description` | string | Yes | The job description for the role (max 20KB) |
+| `seniority_level` | string | No | Expected seniority level for calibration (e.g. `senior`, `staff`, `director`) |
+| `additional_context` | string | No | Any additional context for the simulation |
+
+### Output Sections
+1. **Decision** — Yes / Maybe / No with reasoning
+2. **Top 5 reasons** for the decision
+3. **Top 5 concerns** or red flags
+4. **Strongest evidence of fit**
+5. **Weakest / most generic parts** — specific text identified
+6. **What is missing** for this seniority level
+7. **Specific rewrites** to make before applying
+8. **Scores (1-10)** — role fit, clarity, seniority signal, impact, credibility, keyword alignment
 
 ---
 

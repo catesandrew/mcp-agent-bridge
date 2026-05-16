@@ -53,13 +53,16 @@ Maintain one master resume with ALL experience. Create targeted versions named c
 
 ## Required Output
 1. Job posting keyword extraction (required / preferred / cultural signals)
-2. Current resume audit against this specific role (match analysis)
+2. Resume audit against this specific role (match analysis)
 3. Tailored professional summary
-4. Skills section (reordered + any gaps to address)
-5. Top 3 experience bullets to rewrite (with rewrites)
-6. Sections to add or remove for this application
+4. Skills section (reordered + any gaps addressed)
+5. Top 3-5 experience bullets rewritten (with rewrites)
+6. Sections to add or remove
 7. Red flags or mismatches to address in cover letter
-8. Final pre-submission checklist verification
+8. Evidence map: each tailored bullet → the source fact(s) that support it
+9. Claims removed or avoided because they were unsupported
+10. Questions for the user: missing metrics or proof that would strengthen the resume
+11. Pre-submission checklist (10-point verification)
 `.trim();
 
 /**
@@ -71,6 +74,7 @@ export function buildResumeTailorPrompt(args: {
   job_description: string;
   company_name: string;
   role_title: string;
+  career_facts?: string;
   additional_context?: string;
 }): string {
   const parts = [
@@ -88,6 +92,10 @@ export function buildResumeTailorPrompt(args: {
     args.job_description,
   ];
 
+  if (args.career_facts) {
+    parts.push("", "## Career Facts", "(Extracted from source material — only tailor using facts listed here)", args.career_facts);
+  }
+
   if (args.additional_context) {
     parts.push("", "## Additional Context", args.additional_context);
   }
@@ -96,7 +104,7 @@ export function buildResumeTailorPrompt(args: {
     "",
     "---",
     "",
-    "Tailor the resume following the methodology above. Include all required output sections.",
+    "Tailor the resume following the methodology above. Produce all required output sections including the evidence map, removed claims, and questions for missing proof.",
   );
 
   return parts.join("\n");

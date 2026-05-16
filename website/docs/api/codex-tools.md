@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Codex Tools API
 
-The Codex MCP server exposes nineteen tools.
+The Codex MCP server exposes twenty-one tools.
 
 ## codex
 
@@ -75,7 +75,18 @@ This tool is stateless. The `conversation_id` is passed as context to Codex but 
 
 ## Resume & Career Tools
 
-All 16 tools below are also available on the Claude and Copilot servers with identical parameters. All return plain text with structured AI-generated content. For full methodology details and usage examples, see [SKILLS.md](https://github.com/catesandrew/mcp-agent-bridge/blob/main/SKILLS.md) and the [Resume Tools Guide](../guides/resume-tools).
+All 18 tools below are also available on the Claude and Copilot servers with identical parameters. All return plain text with structured AI-generated content. For full methodology details and usage examples, see [SKILLS.md](https://github.com/catesandrew/mcp-agent-bridge/blob/main/SKILLS.md) and the [Resume Tools Guide](../guides/resume-tools).
+
+## career_fact_extractor
+
+Extract a structured, fact-ID-tagged database of career facts from any source material. Use before `resume_tailor` to enforce truthful, evidence-mapped tailoring.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `source_material` | string | Yes | Resume, LinkedIn profile, brag doc, performance reviews, project notes — any source of career information (max 100KB) |
+| `additional_context` | string | No | Target role, industry, or any other relevant context |
 
 ## cover_letter_generator
 
@@ -259,7 +270,7 @@ Build targeted resume sections (summary, skills, experience, education) tailored
 
 ## resume_tailor
 
-Tailor a master resume to a specific job posting by selecting and emphasizing relevant experience.
+Tailor a master resume to a specific job posting by selecting and emphasizing relevant experience. When `career_facts` is provided, every tailored bullet maps to a source fact ID — producing an evidence map, a list of removed unsupported claims, and questions for missing proof.
 
 ### Parameters
 
@@ -269,7 +280,21 @@ Tailor a master resume to a specific job posting by selecting and emphasizing re
 | `job_description` | string | Yes | Full job posting text |
 | `company_name` | string | Yes | Target company |
 | `role_title` | string | Yes | Role being applied for |
+| `career_facts` | string | No | Fact-ID-tagged output from `career_fact_extractor` — enables evidence map and removed-claims output |
 | `additional_context` | string | No | Any additional information |
+
+## recruiter_first_screen_simulation
+
+Simulate a skeptical hiring manager's 45-second resume screen. Returns a Yes/Maybe/No decision, scores across 6 dimensions, and exact text to rewrite before applying.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `resume` | string | Yes | The resume to screen (max 50KB) |
+| `job_description` | string | Yes | The job description for the role (max 20KB) |
+| `seniority_level` | string | No | Expected seniority level for calibration (e.g. `senior`, `staff`, `director`) |
+| `additional_context` | string | No | Any additional context for the simulation |
 
 ## resume_version_manager
 

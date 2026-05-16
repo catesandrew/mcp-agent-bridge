@@ -14,6 +14,8 @@ import { buildResumeBulletWriterPrompt } from "../shared/resume-bullet-writer-sk
 import { buildResumeFormatterPrompt } from "../shared/resume-formatter-skill.js";
 import { buildResumeQuantifierPrompt } from "../shared/resume-quantifier-skill.js";
 import { buildResumeSectionBuilderPrompt } from "../shared/resume-section-builder-skill.js";
+import { buildCareerFactExtractorPrompt } from "../shared/career-fact-extractor-skill.js";
+import { buildRecruiterFirstScreenPrompt } from "../shared/recruiter-first-screen-skill.js";
 import { buildResumeTailorPrompt } from "../shared/resume-tailor-skill.js";
 import { buildResumeVersionManagerPrompt } from "../shared/resume-version-manager-skill.js";
 import { buildTechResumeOptimizerPrompt } from "../shared/tech-resume-optimizer-skill.js";
@@ -832,6 +834,74 @@ export function createClaudeServer(): McpServer {
       return {
         content: [{ type: "text" as const, text: result.result }],
       };
+    },
+  );
+
+  server.registerTool(
+    "career_fact_extractor",
+    {
+      title: "Career Fact Extractor",
+      description:
+        "Extract a structured, fact-ID-tagged database of career facts from a resume, LinkedIn profile, brag document, or any source material. Preserves truthfulness for downstream resume tailoring.",
+      inputSchema: {
+        source_material: z
+          .string()
+          .max(100_000)
+          .describe(
+            "Resume, LinkedIn profile, brag document, performance reviews, project notes — any source of career information",
+          ),
+        additional_context: z
+          .string()
+          .optional()
+          .describe("Target role, industry, or any other relevant context"),
+      },
+    },
+    async ({ source_material, additional_context }) => {
+      const prompt = buildCareerFactExtractorPrompt({
+        source_material,
+        additional_context,
+      });
+      const result = await runClaude(prompt);
+      return { content: [{ type: "text" as const, text: result.result }] };
+    },
+  );
+
+  server.registerTool(
+    "recruiter_first_screen_simulation",
+    {
+      title: "Recruiter First-Screen Simulation",
+      description:
+        "Simulate a skeptical hiring manager's 45-second resume screen. Returns a Yes/Maybe/No decision, top reasons and concerns, scores across 6 dimensions, and exact rewrites to make before applying.",
+      inputSchema: {
+        resume: z
+          .string()
+          .max(50_000)
+          .describe("The resume to screen"),
+        job_description: z
+          .string()
+          .max(20_000)
+          .describe("The job description for the role"),
+        seniority_level: z
+          .string()
+          .optional()
+          .describe(
+            "Expected seniority level for calibration (e.g. senior, staff, director)",
+          ),
+        additional_context: z
+          .string()
+          .optional()
+          .describe("Any additional context for the simulation"),
+      },
+    },
+    async ({ resume, job_description, seniority_level, additional_context }) => {
+      const prompt = buildRecruiterFirstScreenPrompt({
+        resume,
+        job_description,
+        seniority_level,
+        additional_context,
+      });
+      const result = await runClaude(prompt);
+      return { content: [{ type: "text" as const, text: result.result }] };
     },
   );
 
