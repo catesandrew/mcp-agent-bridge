@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { spawn } from "node:child_process";
 import { createServer, startServer } from "../shared/server-factory.js";
+import { buildCoverLetterPrompt } from "../shared/cover-letter-skill.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 /** Parsed response from a `copilot -p` invocation. */
@@ -167,6 +168,48 @@ ${context ? `Context: ${context}\n\n` : ""}${diff}`;
       } catch {
         // Copilot doesn't support schema-constrained output
       }
+
+      return {
+        content: [{ type: "text" as const, text: result.text }],
+      };
+    },
+  );
+
+  server.registerTool(
+    "cover_letter_generator",
+    {
+      title: "Application Cover Letter Generator",
+      description:
+        "Generate a personalized, compelling cover letter from a resume and job description. Returns an analysis, the complete letter, alternative opening hooks, and interview talking points.",
+      inputSchema: {
+        resume: z
+          .string()
+          .max(50_000)
+          .describe("The candidate's resume or experience summary"),
+        job_description: z
+          .string()
+          .max(20_000)
+          .describe("The full job posting text"),
+        company_name: z.string().describe("Name of the company"),
+        role_title: z.string().describe("Title of the role being applied for"),
+        additional_context: z
+          .string()
+          .optional()
+          .describe(
+            "Optional: mutual connections, specific reasons for applying, notable company news, etc.",
+          ),
+      },
+    },
+    async ({ resume, job_description, company_name, role_title, additional_context }) => {
+      const prompt = buildCoverLetterPrompt({
+        resume,
+        jobDescription: job_description,
+        companyName: company_name,
+        roleTitle: role_title,
+        additionalContext: additional_context,
+      });
+
+      const result = await runCopilot(prompt);
 
       return {
         content: [{ type: "text" as const, text: result.text }],

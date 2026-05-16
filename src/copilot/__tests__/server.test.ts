@@ -90,7 +90,8 @@ describe("Copilot MCP Server", () => {
 
     expect(toolNames).toContain("ask");
     expect(toolNames).toContain("code_review");
-    expect(tools).toHaveLength(2);
+    expect(toolNames).toContain("cover_letter_generator");
+    expect(tools).toHaveLength(3);
   });
 
   describe("ask tool", () => {
