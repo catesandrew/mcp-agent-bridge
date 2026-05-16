@@ -21,6 +21,7 @@ const sidebars: SidebarsConfig = {
         "guides/copilot-server",
         "guides/cross-agent-review",
         "guides/dual-review-skill",
+        "guides/resume-tools",
       ],
     },
     {

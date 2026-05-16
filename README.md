@@ -56,11 +56,36 @@ Each bridge runs as a singleton background service behind an HTTP proxy. Multipl
                                                              └──────────────────┘
 ```
 
-| Server | Port | Tools |
-|--------|------|-------|
-| Claude | 8940 | `review`, `ask`, `code_review` |
-| Codex | 8941 | `codex`, `code_review`, `codex_reply` |
-| Copilot | 8945 | `ask`, `code_review` |
+| Server | Port | Core Tools | Resume Tools |
+|--------|------|------------|--------------|
+| Claude | 8940 | `review`, `ask`, `code_review` | 16 career tools |
+| Codex | 8941 | `codex`, `code_review`, `codex_reply` | 16 career tools |
+| Copilot | 8945 | `ask`, `code_review` | 16 career tools |
+
+## Resume & Career Tools
+
+All three servers include 16 resume and career tools powered by embedded skill methodologies. No network fetch at runtime — the expert logic is compiled in.
+
+| Tool | Purpose |
+|------|---------|
+| `cover_letter_generator` | Personalized cover letters with match analysis and talking points |
+| `creative_portfolio_resume` | ATS + designed resume for creative professionals |
+| `executive_resume_writer` | C-suite, VP, and Director-level transformation-story resumes |
+| `interview_prep_generator` | STAR-method prep with predicted questions ranked by probability |
+| `job_description_analyzer` | Match scoring, keyword extraction, and red flag detection |
+| `linkedin_profile_optimizer` | Algorithm-aware LinkedIn profile rewrite |
+| `portfolio_case_study_writer` | Six-section case studies for design, engineering, PM, and marketing |
+| `reference_list_builder` | Reference strategy, formatting, and briefing email templates |
+| `resume_ats_optimizer` | Keyword matching and ATS compliance fixes |
+| `resume_bullet_writer` | Transform duty bullets into achievement bullets using X-Y-Z formula |
+| `resume_formatter` | ATS-safe formatting audit and repair |
+| `resume_quantifier` | Add metrics to every bullet using estimation methodology |
+| `resume_section_builder` | Build targeted sections by career stage |
+| `resume_tailor` | Tailor a master resume to a specific job posting |
+| `resume_version_manager` | Organize and track multiple resume versions with naming conventions |
+| `tech_resume_optimizer` | Optimize for software engineering, data, DevOps, and technical PM roles |
+
+See the [Resume Tools Guide](https://catesandrew.github.io/mcp-agent-bridge/docs/guides/resume-tools) and [SKILLS.md](SKILLS.md) for full input schemas and usage examples.
 
 ## Structured Review Output
 
