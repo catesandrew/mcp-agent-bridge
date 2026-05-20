@@ -4,6 +4,16 @@
   "description": "Bridges AI coding agents (Claude Code, OpenAI Codex, GitHub Copilot) as MCP servers behind HTTP proxies",
   "license": "Apache-2.0",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/claude/claude-runner.d.ts",
+      "import": "./dist/claude/claude-runner.js"
+    },
+    "./dist/claude/claude-runner.js": {
+      "types": "./dist/claude/claude-runner.d.ts",
+      "import": "./dist/claude/claude-runner.js"
+    }
+  },
   "engines": {
     "node": ">=20.0.0"
   },

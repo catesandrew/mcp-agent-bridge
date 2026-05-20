@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createServer, startServer } from "../shared/server-factory.js";
+import { createServer, startServer, startHttpServer } from "../shared/server-factory.js";
 import { runClaude, runClaudeReview, validateCwd } from "./claude-runner.js";
 import { buildCoverLetterPrompt } from "../shared/cover-letter-skill.js";
 import { buildCreativePortfolioResumePrompt } from "../shared/creative-portfolio-resume-skill.js";
@@ -21,6 +21,7 @@ import { buildResumeVersionManagerPrompt } from "../shared/resume-version-manage
 import { buildTechResumeOptimizerPrompt } from "../shared/tech-resume-optimizer-skill.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ReviewResult } from "../shared/types.js";
+import { PORTS } from "../shared/types.js";
 
 /**
  * Create the Claude MCP bridge server with `review`, `ask`, and `code_review` tools.
@@ -62,12 +63,18 @@ export function createClaudeServer(): McpServer {
           .string()
           .optional()
           .describe("Additional context about what is being reviewed"),
+        cwd: z
+          .string()
+          .optional()
+          .describe("Working directory for the Claude session to read files from"),
       },
     },
-    async ({ content, context }) => {
+    async ({ content, context, cwd }) => {
       const prompt = context ? `Context: ${context}\n\n${content}` : content;
 
-      const review: ReviewResult = await runClaudeReview(prompt);
+      const review: ReviewResult = await runClaudeReview(prompt, {
+        cwd: validateCwd(cwd ?? undefined),
+      });
 
       return {
         content: [
@@ -918,9 +925,23 @@ const isMain =
       process.argv[1].endsWith("/claude/server.ts")));
 
 if (isMain) {
-  const server = createClaudeServer();
-  startServer(server).catch((err: unknown) => {
-    console.error("Failed to start Claude MCP server:", err);
-    process.exit(1);
-  });
+  const useHttp =
+    process.argv.includes("--http") || process.env["CLAUDE_MCP_HTTP"] === "1";
+  const port = parseInt(
+    process.env["CLAUDE_MCP_HTTP_PORT"] ?? String(PORTS.claude),
+    10,
+  );
+
+  if (useHttp) {
+    startHttpServer(createClaudeServer, port).catch((err: unknown) => {
+      console.error("Failed to start Claude MCP HTTP server:", err);
+      process.exit(1);
+    });
+  } else {
+    const server = createClaudeServer();
+    startServer(server).catch((err: unknown) => {
+      console.error("Failed to start Claude MCP server:", err);
+      process.exit(1);
+    });
+  }
 }

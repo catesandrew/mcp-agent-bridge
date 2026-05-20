@@ -1,5 +1,7 @@
+import { createServer as createHttpServer } from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { ServerConfig } from "./types.js";
 
 /**
@@ -39,4 +41,45 @@ export function createServer(config: ServerConfig): McpServer {
 export async function startServer(server: McpServer): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
+}
+
+/**
+ * Start an HTTP server that handles MCP requests at `POST /mcp`.
+ *
+ * Each request creates a fresh stateless transport + server instance via
+ * `serverFactory()`, so the factory must be cheap to call.
+ *
+ * @param serverFactory - Called once per request to create a configured server.
+ * @param port - TCP port to listen on.
+ * @param hostname - Interface to bind (default `"127.0.0.1"`).
+ */
+export async function startHttpServer(
+  serverFactory: () => McpServer,
+  port: number,
+  hostname = "127.0.0.1",
+): Promise<void> {
+  const httpServer = createHttpServer((req, res) => {
+    if (req.url !== "/mcp") {
+      res.writeHead(404).end("Not Found");
+      return;
+    }
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+    });
+    const mcpServer = serverFactory();
+    mcpServer
+      .connect(transport)
+      .then(() => transport.handleRequest(req, res))
+      .catch((err: unknown) => {
+        console.error("MCP HTTP error:", err);
+        if (!res.headersSent) res.writeHead(500).end();
+      });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    httpServer.listen(port, hostname, resolve);
+    httpServer.on("error", reject);
+  });
+
+  console.log(`MCP HTTP server listening on http://${hostname}:${port}/mcp`);
 }
