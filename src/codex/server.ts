@@ -212,7 +212,7 @@ ${context ? `Context: ${context}\n\n` : ""}${diff}`;
     {
       title: "Review",
       description:
-        "Send a plan, diff, or implementation to Codex for independent review. Returns structured JSON with verdict, issues, and suggestions.",
+        "Send a plan, diff, or implementation to Codex for independent review. Returns structured JSON with verdict, issues, and suggestions when possible, raw text otherwise.",
       inputSchema: {
         content: z
           .string()
