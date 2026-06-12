@@ -64,7 +64,11 @@ describe("Claude MCP Server", () => {
     expect(toolNames).toContain("tech_resume_optimizer");
     expect(toolNames).toContain("career_fact_extractor");
     expect(toolNames).toContain("recruiter_first_screen_simulation");
-    expect(tools).toHaveLength(21);
+    expect(toolNames).toContain("open_pr_gh");
+    expect(toolNames).toContain("review_pr_gh");
+    expect(toolNames).toContain("open_pr_ado");
+    expect(toolNames).toContain("review_pr_ado");
+    expect(tools).toHaveLength(25);
   });
 
   describe("review tool", () => {

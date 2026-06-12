@@ -19,6 +19,10 @@ import { buildRecruiterFirstScreenPrompt } from "../shared/recruiter-first-scree
 import { buildResumeTailorPrompt } from "../shared/resume-tailor-skill.js";
 import { buildResumeVersionManagerPrompt } from "../shared/resume-version-manager-skill.js";
 import { buildTechResumeOptimizerPrompt } from "../shared/tech-resume-optimizer-skill.js";
+import { buildOpenPrGhPrompt } from "../shared/pr-gh-open-skill.js";
+import { buildReviewPrGhPrompt } from "../shared/pr-gh-review-skill.js";
+import { buildOpenPrAdoPrompt } from "../shared/pr-ado-open-skill.js";
+import { buildReviewPrAdoPrompt } from "../shared/pr-ado-review-skill.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ReviewResult } from "../shared/types.js";
 import { PORTS } from "../shared/types.js";
@@ -909,6 +913,86 @@ export function createClaudeServer(): McpServer {
       });
       const result = await runClaude(prompt);
       return { content: [{ type: "text" as const, text: result.result }] };
+    },
+  );
+
+  server.registerTool(
+    "open_pr_gh",
+    {
+      title: "Open PR (GitHub)",
+      description:
+        "Push the active branch and open a GitHub pull request with a structured description, linked ticket, reviewers, and labels. Returns step-by-step workflow instructions.",
+      inputSchema: {
+        baseBranch: z.string().optional().describe("Target branch (default: dev)"),
+        jiraBaseUrl: z.string().optional().describe("Issue tracker base URL for ticket links"),
+        reviewers: z.string().optional().describe("Comma-separated GitHub usernames"),
+        labels: z.string().optional().describe("Comma-separated PR labels"),
+        draft: z.boolean().optional().describe("Open as draft PR (default: false)"),
+      },
+    },
+    async ({ baseBranch, jiraBaseUrl, reviewers, labels, draft }) => {
+      const instructions = buildOpenPrGhPrompt({ baseBranch, jiraBaseUrl, reviewers, labels, draft });
+      return { content: [{ type: "text" as const, text: instructions }] };
+    },
+  );
+
+  server.registerTool(
+    "review_pr_gh",
+    {
+      title: "Review PR (GitHub)",
+      description:
+        "Systematic file-by-file GitHub PR code review. Posts inline comments and a verdict. Returns step-by-step workflow instructions.",
+      inputSchema: {
+        pr: z.string().describe("GitHub PR URL or number"),
+        repo: z.string().optional().describe("owner/repo slug (inferred from URL if omitted)"),
+      },
+    },
+    async ({ pr, repo }) => {
+      const instructions = buildReviewPrGhPrompt({ pr, repo });
+      return { content: [{ type: "text" as const, text: instructions }] };
+    },
+  );
+
+  server.registerTool(
+    "open_pr_ado",
+    {
+      title: "Open PR (Azure DevOps)",
+      description:
+        "Push the active branch and open an Azure DevOps pull request with a structured description, linked work items, and optional auto-complete. Returns step-by-step workflow instructions.",
+      inputSchema: {
+        org: z.string().describe("Azure DevOps organization URL (e.g. https://dev.azure.com/myorg)"),
+        project: z.string().describe("ADO project name"),
+        repo: z.string().describe("Repository name"),
+        baseBranch: z.string().optional().describe("Target branch (default: dev)"),
+        jiraBaseUrl: z.string().optional().describe("Issue tracker base URL for ticket links"),
+        reviewers: z.string().optional().describe("Space-separated reviewer emails"),
+        workItems: z.string().optional().describe("Space-separated ADO work item IDs to link"),
+        draft: z.boolean().optional().describe("Open as draft PR (default: false)"),
+        autoComplete: z.boolean().optional().describe("Enable auto-complete on creation (default: false)"),
+      },
+    },
+    async ({ org, project, repo, baseBranch, jiraBaseUrl, reviewers, workItems, draft, autoComplete }) => {
+      const instructions = buildOpenPrAdoPrompt({ org, project, repo, baseBranch, jiraBaseUrl, reviewers, workItems, draft, autoComplete });
+      return { content: [{ type: "text" as const, text: instructions }] };
+    },
+  );
+
+  server.registerTool(
+    "review_pr_ado",
+    {
+      title: "Review PR (Azure DevOps)",
+      description:
+        "Systematic file-by-file ADO PR code review. Posts inline thread comments and a vote. Returns step-by-step workflow instructions.",
+      inputSchema: {
+        prId: z.string().describe("ADO pull request ID"),
+        org: z.string().describe("Azure DevOps organization URL"),
+        project: z.string().describe("ADO project name"),
+        repo: z.string().describe("Repository name"),
+      },
+    },
+    async ({ prId, org, project, repo }) => {
+      const instructions = buildReviewPrAdoPrompt({ prId, org, project, repo });
+      return { content: [{ type: "text" as const, text: instructions }] };
     },
   );
 
