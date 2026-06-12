@@ -72,13 +72,19 @@ describe("Codex MCP Server", () => {
     await cleanup();
   });
 
-  it("registers codex, code_review, and codex_reply tools", async () => {
+  it("registers codex, code_review, codex_reply, review, and PR tools", async () => {
     const { tools } = await client.listTools();
     const toolNames = tools.map((t) => t.name);
 
     expect(toolNames).toContain("codex");
     expect(toolNames).toContain("code_review");
     expect(toolNames).toContain("codex_reply");
+    expect(toolNames).toContain("review");
+    expect(toolNames).toContain("open_pr_gh");
+    expect(toolNames).toContain("review_pr_gh");
+    expect(toolNames).toContain("open_pr_ado");
+    expect(toolNames).toContain("review_pr_ado");
+    expect(tools).toHaveLength(26);
   });
 
   describe("codex tool", () => {
