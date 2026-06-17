@@ -62,6 +62,142 @@ Classify the change to calibrate review depth:
 
 ---
 
+## Phase 1.5: Graph Impact Analysis
+
+Query the codebase-memory knowledge graph for structural impact before reading individual files. This surfaces blast radius, hidden dependencies, and cross-service risk that the diff alone cannot show.
+
+**This phase is conditional.** Skip silently if no graph is indexed for this repo.
+
+### 1.5.1 Probe for graph availability
+
+Call \`list_projects\` (MCP tool: \`mcp__codebase-memory-mcp__list_projects\`). Match a project's \`root_path\` against the local repo root:
+
+\`\`\`bash
+git rev-parse --show-toplevel
+\`\`\`
+
+If no project matches, skip to Phase 2. If a match is found, note the \`project\` name for all subsequent graph calls.
+
+### 1.5.2 Detect structural changes and their impact
+
+Use \`detect_changes\` (MCP: \`mcp__codebase-memory-mcp__detect_changes\`) against the graph project with the PR's base branch:
+
+\`\`\`
+detect_changes(
+  project = <matched project name>,
+  base_branch = <baseRefName from 1.1>,
+  depth = 2
+)
+\`\`\`
+
+This returns changed symbols with their structural impact — callers affected, edges modified, risk tier. Use this output to prioritize which symbols need deeper tracing.
+
+> **Note:** \`detect_changes\` runs \`git diff\` against the repo at \`root_path\`. It reflects the local working tree's current state against the base branch, not the remote PR head. Most accurate when the local repo is current with \`origin/<base>\`.
+
+### 1.5.3 Blast radius — inbound callers of changed symbols
+
+For each high-impact symbol identified in 1.5.2 (or extracted from the diff for the top 3–5 most central changed functions), call \`trace_path\` (MCP: \`mcp__codebase-memory-mcp__trace_path\`):
+
+\`\`\`
+trace_path(
+  function_name = <symbol>,
+  project = <project>,
+  direction = "inbound",
+  depth = 2,
+  risk_labels = true
+)
+\`\`\`
+
+**Interpret results:**
+- **0 inbound callers** (excluding tests) → possible dead code; flag for the author
+- **< 10 callers** → contained change, low blast radius
+- **10–100 callers** → medium risk; verify all call sites handle the new behavior
+- **> 100 callers** → high fan-in hot path; escalate to Critical in the review summary
+
+### 1.5.4 Outbound dependency chain (for new or refactored functions)
+
+For functions the PR introduces or significantly rewrites, trace outbound to understand what they now depend on:
+
+\`\`\`
+trace_path(
+  function_name = <symbol>,
+  project = <project>,
+  direction = "outbound",
+  depth = 3
+)
+\`\`\`
+
+Look for: newly introduced dependencies on services, external calls, or shared singletons that could introduce latency, coupling, or failure modes.
+
+### 1.5.5 HTTP surface (if PR touches routes or controllers)
+
+If changed files include route definitions, controllers, or API handlers, query the HTTP call graph:
+
+\`\`\`cypher
+-- Which functions call the changed route path?
+MATCH (f:Function)-[:HTTP_CALLS]->(r:Route)
+WHERE r.path CONTAINS '<changed-path-fragment>'
+RETURN f.name, f.file, r.method, r.path
+ORDER BY f.name
+\`\`\`
+
+\`\`\`cypher
+-- What does this endpoint handler call downstream?
+MATCH (handler:Function)-[:CALLS*1..3]->(dep:Function)
+WHERE handler.name = '<changed-handler>'
+RETURN dep.name, dep.file
+\`\`\`
+
+Run via \`query_graph\` (MCP: \`mcp__codebase-memory-mcp__query_graph\`, \`project = <project>\`).
+
+### 1.5.6 Cross-service boundary impact
+
+If the PR touches a module that sits at a service boundary (e.g. shared libs, API clients, message queue publishers), check cross-service edges:
+
+\`\`\`cypher
+MATCH (src:Function)-[:CROSS_HTTP_CALLS|CROSS_ASYNC_CALLS]->(tgt:Function)
+WHERE src.file CONTAINS '<changed-file-path-fragment>'
+RETURN src.name, src.file, tgt.name, tgt.file
+LIMIT 20
+\`\`\`
+
+If results exist, surface them prominently — cross-service changes can break consumers outside this repo.
+
+### 1.5.7 Co-change signal — missing related files
+
+Check whether files that historically co-change with the PR's changed files are absent from this PR:
+
+\`\`\`cypher
+MATCH (f1:File)-[:FILE_CHANGES_WITH]->(f2:File)
+WHERE f1.path CONTAINS '<changed-file-path-fragment>'
+  AND NOT f2.path IN [<list of all PR changed file paths>]
+RETURN f2.path, count(*) AS cochange_count
+ORDER BY cochange_count DESC
+LIMIT 5
+\`\`\`
+
+Files with high co-change scores that are absent from the PR are candidates for a review comment: "Was it intentional to not update \`<file>\`?"
+
+### 1.5.8 Record graph findings
+
+Collect findings from 1.5.2–1.5.7 as a structured summary to use in Phase 2 and Phase 4:
+
+\`\`\`
+GRAPH_FINDINGS = {
+  high_fan_in: [ { symbol, caller_count, risk } ],   // from 1.5.3
+  dead_code_candidates: [ { symbol, file } ],         // 0 inbound callers
+  new_dependencies: [ { symbol, depends_on, file } ], // from 1.5.4
+  http_surface: [ { handler, route, method } ],       // from 1.5.5
+  cross_service_edges: [ { src, tgt } ],              // from 1.5.6
+  missing_co_changes: [ { file, cochange_score } ],   // from 1.5.7
+}
+\`\`\`
+
+Feed \`high_fan_in\` and \`cross_service_edges\` into Phase 2 per-file checklist.
+Feed all findings into Phase 4.1 review summary.
+
+---
+
 ## Phase 2: Per-File Systematic Review
 
 For each changed file, read the full file (not just the diff) to understand context:
@@ -80,6 +216,7 @@ Apply this checklist to each file and record findings as \`{ path, line, body }\
 - [ ] Are there off-by-one errors, incorrect comparisons, or wrong operator precedence?
 - [ ] Are async operations awaited? Are race conditions possible?
 - [ ] Does state mutation happen in the right order?
+- [ ] **[Graph]** If this symbol has high fan-in (from 1.5.3), do all call sites handle the changed signature or behavior?
 
 ### Security (Critical)
 - [ ] Is any user input used in SQL, shell commands, file paths, or HTML without sanitization?
@@ -87,6 +224,7 @@ Apply this checklist to each file and record findings as \`{ path, line, body }\
 - [ ] Are authorization checks present on every code path that accesses protected resources?
 - [ ] Are dependencies added from trusted sources with pinned versions?
 - [ ] Are file uploads, redirects, or deserializations safe?
+- [ ] **[Graph]** If this is a cross-service boundary (from 1.5.6), are auth/validation contracts preserved for all consumers?
 
 ### Best Practices (Medium)
 - [ ] Does the code follow existing patterns in the codebase?
@@ -100,11 +238,13 @@ Apply this checklist to each file and record findings as \`{ path, line, body }\
 - [ ] Are expensive operations (network calls, disk I/O) called unnecessarily on hot paths?
 - [ ] Are indexes or caches used where appropriate?
 - [ ] Could any synchronous operation block the event loop or a thread pool?
+- [ ] **[Graph]** If fan-in > 100 (from 1.5.3), is the changed code on a hot path where performance matters?
 
 ### Style & Readability (Low)
 - [ ] Is the code self-documenting? Would a new team member understand it?
 - [ ] Are there dead code blocks, commented-out code, or leftover debug statements?
 - [ ] Do not flag formatting if the project uses auto-formatters (Prettier, Black, gofmt, etc.).
+- [ ] **[Graph]** If 0 inbound callers (from 1.5.3), is this function actually reachable? Flag as possible dead code.
 
 ---
 
@@ -123,6 +263,8 @@ Review these once across the whole PR (not per-file):
 - [ ] Are any database columns/tables renamed or dropped without a migration?
 - [ ] Are any environment variables renamed or removed?
 - [ ] Are any message queue schemas changed in a way that breaks consumers?
+- [ ] **[Graph]** Do \`cross_service_edges\` findings (from 1.5.6) indicate external consumers that aren't covered by this PR?
+- [ ] **[Graph]** Do \`missing_co_changes\` (from 1.5.7) point to files that should have been updated?
 
 ### Dependencies
 - [ ] Are new dependencies justified? Could the same be done with what is already in the project?
@@ -141,6 +283,19 @@ Review these once across the whole PR (not per-file):
 
 Collect all findings as a JSON review payload. Use \`start_line\`/\`line\` for multi-line comments.
 
+If Phase 1.5 produced graph findings, include a **Graph Impact** section in the review body before the verdict. Format:
+
+\`\`\`
+### Graph Impact Analysis
+- **Blast radius:** \`<symbol>\` has <N> inbound callers — <risk tier>
+- **Hot path warning:** \`<symbol>\` is called from <N> sites; performance regressions will be wide
+- **Dead code:** \`<symbol>\` has no inbound callers outside tests — confirm intentional
+- **Cross-service:** This change crosses service boundaries to \`<tgt>\` — verify consumer compatibility
+- **Missing co-changes:** \`<file>\` historically changes with this area (co-change score: N) — was it intentional to exclude it?
+\`\`\`
+
+Omit any category with no findings. Do not include graph boilerplate if Phase 1.5 was skipped.
+
 \`\`\`bash
 # Parse owner/repo/number from PR URL or use inputs
 OWNER_REPO="\${input:repo}"
@@ -151,7 +306,7 @@ gh api repos/\${OWNER_REPO}/pulls/\${PR_NUMBER}/reviews \\
   --method POST \\
   --input - <<'EOF'
 {
-  "body": "## Review Summary\\n\\n[Overall assessment paragraph]\\n\\n**Critical:** X issue(s)\\n**Medium:** Y issue(s)\\n**Low:** Z issue(s)",
+  "body": "## Review Summary\\n\\n[Overall assessment paragraph]\\n\\n### Graph Impact Analysis\\n[Graph findings or omit section]\\n\\n**Critical:** X issue(s)\\n**Medium:** Y issue(s)\\n**Low:** Z issue(s)",
   "event": "REQUEST_CHANGES",
   "comments": [
     {
@@ -206,6 +361,7 @@ Write inline comments so the author knows exactly what to change and why:
 Examples:
 - \`**Critical — Security:** SQL query built with string concatenation on line 23. Parameterize the query: \\\`db.query('SELECT * FROM users WHERE id = ?', [userId])\\\`.\`
 - \`**Medium — Correctness:** \\\`retryCount\\\` is never reset between requests. Move initialization inside the request handler.\`
+- \`**Medium — Blast Radius:** \\\`processLoanApplication\\\` has 847 inbound callers. The changed null handling will affect all of them — confirm the new behavior is safe across all call sites.\`
 - \`**Low:** Unused import \\\`lodash/merge\\\` — remove to keep the bundle lean.\`
 
 ---
@@ -227,6 +383,8 @@ Examples:
 - **Vague comments** — "This could be better" is not actionable. Every comment must say what to change and why.
 - **Duplicating existing feedback** — Check existing review threads before posting. Re-raising resolved issues wastes the author's time.
 - **Approving without checking tests** — Always verify the test coverage section before setting \`event: APPROVE\`.
+- **Running graph queries on a missing project** — Always probe \`list_projects\` first. If no match, skip Phase 1.5 entirely rather than erroring.
+- **Treating graph findings as definitive** — The graph reflects the indexed state (usually main/HEAD). New callers introduced in the PR itself won't appear yet. Use graph data as signal, not ground truth.
 `.trim();
 
 /**
