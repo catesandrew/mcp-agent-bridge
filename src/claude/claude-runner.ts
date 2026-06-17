@@ -102,6 +102,29 @@ function extractResultEntry(parsed: unknown): ClaudeJsonOutput {
   throw new Error("Unexpected claude output structure");
 }
 
+/**
+ * Build a clean process environment for spawning claude subprocesses.
+ * - Strips ANTHROPIC_BASE_URL so automated claude -p calls hit Anthropic
+ *   directly rather than routing through any interactive session proxy
+ *   (e.g. headroom sets ANTHROPIC_BASE_URL=http://127.0.0.1:8787).
+ * - Ensures ~/.local/bin is in PATH — the Claude Code CLI moved there in
+ *   v2.1+ (previously /opt/homebrew/bin) and may be absent if this server
+ *   was started with a minimal or stale PATH.
+ */
+function buildSpawnEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  delete env["ANTHROPIC_BASE_URL"];
+
+  const home = env["HOME"] ?? "";
+  const localBin = `${home}/.local/bin`;
+  const pathParts = (env["PATH"] ?? "").split(":");
+  if (home && !pathParts.includes(localBin)) {
+    env["PATH"] = [localBin, ...pathParts].join(":");
+  }
+
+  return env;
+}
+
 function buildArgs(options: ClaudeRunnerOptions): string[] {
   const args: string[] = ["-p", "--output-format", "json", "--verbose"];
 
@@ -161,6 +184,7 @@ export async function runClaude(
     const proc = spawn("claude", args, {
       stdio: ["pipe", "pipe", "pipe"],
       cwd: merged.cwd,
+      env: buildSpawnEnv(),
     });
 
     // Write prompt via stdin — claude -p reads from stdin when no positional arg
@@ -267,6 +291,7 @@ ${prompt}`;
     const proc = spawn("claude", args, {
       stdio: ["pipe", "pipe", "pipe"],
       cwd: merged.cwd,
+      env: buildSpawnEnv(),
     });
 
     proc.stdin.write(reviewPrompt);
