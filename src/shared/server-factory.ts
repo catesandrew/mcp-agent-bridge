@@ -76,6 +76,12 @@ export async function startHttpServer(
       });
   });
 
+  // Node.js defaults (headersTimeout=60s, requestTimeout=300s) would kill
+  // long-running tool calls. Tool handlers manage their own timeouts via
+  // PROCESS_TIMEOUT_MS, so disable the HTTP-level limits.
+  httpServer.headersTimeout = 0;
+  httpServer.requestTimeout = 0;
+
   await new Promise<void>((resolve, reject) => {
     httpServer.listen(port, hostname, resolve);
     httpServer.on("error", reject);
