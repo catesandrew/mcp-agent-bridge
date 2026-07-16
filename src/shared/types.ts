@@ -147,6 +147,44 @@ export const REVIEW_JSON_SCHEMA = {
 } as const;
 
 /**
+ * The 5 verdicts `quick_analysis` picks exactly one from when triaging a
+ * stale PR review. See docs/superpowers/specs in pr-bot for the taxonomy
+ * definitions (ALREADY_RESOLVED, SAFE_TO_MERGE, NEEDS_WORK, NUDGE_AUTHOR,
+ * STILL_RELEVANT).
+ */
+export interface QuickAnalysisResult {
+  verdict:
+    | "ALREADY_RESOLVED"
+    | "SAFE_TO_MERGE"
+    | "NEEDS_WORK"
+    | "NUDGE_AUTHOR"
+    | "STILL_RELEVANT";
+  reason: string;
+}
+
+/**
+ * JSON Schema for {@link QuickAnalysisResult}, passed to
+ * `claude -p --json-schema` to constrain quick_analysis output.
+ */
+export const QUICK_ANALYSIS_JSON_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    verdict: {
+      type: "string" as const,
+      enum: [
+        "ALREADY_RESOLVED",
+        "SAFE_TO_MERGE",
+        "NEEDS_WORK",
+        "NUDGE_AUTHOR",
+        "STILL_RELEVANT",
+      ],
+    },
+    reason: { type: "string" as const },
+  },
+  required: ["verdict", "reason"],
+};
+
+/**
  * Default HTTP ports for each MCP proxy, used by LaunchAgent scripts.
  *
  * Override per-server via environment variables:
