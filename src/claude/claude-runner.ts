@@ -233,7 +233,12 @@ export async function runClaude(
     proc.on("close", (code: number | null) => {
       settle(() => {
         if (code !== 0) {
-          reject(new Error(`claude exited with code ${code ?? "null"}`));
+          const detail = stderr.trim();
+          reject(
+            new Error(
+              `claude exited with code ${code ?? "null"}${detail ? `: ${detail}` : ""}`,
+            ),
+          );
           return;
         }
 
@@ -339,7 +344,12 @@ ${prompt}`;
     proc.on("close", (code: number | null) => {
       settle(() => {
         if (code !== 0) {
-          reject(new Error(`claude review exited with code ${code ?? "null"}`));
+          const detail = stderr.trim();
+          reject(
+            new Error(
+              `claude review exited with code ${code ?? "null"}${detail ? `: ${detail}` : ""}`,
+            ),
+          );
           return;
         }
 
