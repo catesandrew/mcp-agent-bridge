@@ -1,0 +1,45 @@
+name: Release (Windows x64)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      - run: bun run lint
+
+      - name: Build binaries
+        run: |
+          mkdir -p bin
+          bun build --compile --target=bun-windows-x64 ./src/claude/server.ts --outfile ./bin/claude-mcp-server-windows-x64.exe
+          bun build --compile --target=bun-windows-x64 ./src/codex/server.ts --outfile ./bin/codex-mcp-server-windows-x64.exe
+          bun build --compile --target=bun-windows-x64 ./src/copilot/server.ts --outfile ./bin/copilot-mcp-server-windows-x64.exe
+
+      - name: Generate checksums
+        run: |
+          cd bin
+          sha256sum * > checksums-windows-x64.txt
+          cat checksums-windows-x64.txt
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: ./bin/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

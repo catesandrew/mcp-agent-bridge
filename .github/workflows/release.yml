@@ -19,15 +19,9 @@ jobs:
           - os: ubuntu-latest
             target: bun-linux-arm64
             suffix: linux-arm64
-          - os: macos-latest
-            target: bun-darwin-arm64
-            suffix: darwin-arm64
           - os: ubuntu-latest
             target: bun-darwin-x64
             suffix: darwin-x64
-          - os: ubuntu-latest
-            target: bun-windows-x64
-            suffix: windows-x64.exe
 
     runs-on: ${{ matrix.os }}
 
