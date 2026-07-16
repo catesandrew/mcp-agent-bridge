@@ -9,3 +9,10 @@ exe/
 website/build/
 website/.docusaurus/
 website/.cache-loader/
+installer/windows/bin/
+installer/windows/dist/
+
+# mcp-proxy is vendored with its runtime deps checked in (no network fetch at
+# MSI build/install time) — override the blanket node_modules/ ignore above.
+!installer/windows/vendor/mcp-proxy/node_modules/
+!installer/windows/vendor/mcp-proxy/node_modules/**
