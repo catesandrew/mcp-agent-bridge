@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createServer, startServer, startHttpServer } from "../shared/server-factory.js";
-import { runClaude, runClaudeReview, validateCwd } from "./claude-runner.js";
+import { runClaude, runClaudeReview, runQuickAnalysis, validateCwd } from "./claude-runner.js";
 import { buildCoverLetterPrompt } from "../shared/cover-letter-skill.js";
 import { buildCreativePortfolioResumePrompt } from "../shared/creative-portfolio-resume-skill.js";
 import { buildExecutiveResumePrompt } from "../shared/executive-resume-skill.js";
@@ -140,6 +140,36 @@ export function createClaudeServer(): McpServer {
       return {
         content: [
           { type: "text" as const, text: JSON.stringify(review, null, 2) },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "quick_analysis",
+    {
+      title: "Quick Analysis",
+      description:
+        "Lightweight, non-agentic triage for a stale or low-priority item — e.g. deciding what to do with a PR review that's gone quiet. Returns a verdict from a small fixed set plus a one-sentence reason. Not a full code review.",
+      inputSchema: {
+        content: z
+          .string()
+          .max(50_000)
+          .describe("The situation to triage — current state, activity history, whatever context is relevant"),
+        cwd: z
+          .string()
+          .optional()
+          .describe("Working directory for the Claude session, if file access is needed"),
+      },
+    },
+    async ({ content, cwd }) => {
+      const analysis = await runQuickAnalysis(content, {
+        cwd: validateCwd(cwd ?? undefined),
+      });
+
+      return {
+        content: [
+          { type: "text" as const, text: JSON.stringify(analysis, null, 2) },
         ],
       };
     },

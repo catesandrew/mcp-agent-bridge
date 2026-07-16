@@ -7,10 +7,11 @@ import type { ReviewResult } from "../../shared/types.js";
 vi.mock("../claude-runner.js", () => ({
   runClaude: vi.fn(),
   runClaudeReview: vi.fn(),
+  runQuickAnalysis: vi.fn(),
   validateCwd: vi.fn((cwd: string | undefined) => cwd),
 }));
 
-const { runClaude, runClaudeReview } = await import("../claude-runner.js");
+const { runClaude, runClaudeReview, runQuickAnalysis } = await import("../claude-runner.js");
 const { createClaudeServer } = await import("../server.js");
 
 describe("Claude MCP Server", () => {
@@ -46,6 +47,7 @@ describe("Claude MCP Server", () => {
     expect(toolNames).toContain("review");
     expect(toolNames).toContain("ask");
     expect(toolNames).toContain("code_review");
+    expect(toolNames).toContain("quick_analysis");
     expect(toolNames).toContain("cover_letter_generator");
     expect(toolNames).toContain("creative_portfolio_resume");
     expect(toolNames).toContain("executive_resume_writer");
@@ -68,7 +70,7 @@ describe("Claude MCP Server", () => {
     expect(toolNames).toContain("review_pr_gh");
     expect(toolNames).toContain("open_pr_ado");
     expect(toolNames).toContain("review_pr_ado");
-    expect(tools).toHaveLength(25);
+    expect(tools).toHaveLength(26);
   });
 
   describe("review tool", () => {
@@ -182,6 +184,36 @@ describe("Claude MCP Server", () => {
       const parsed = JSON.parse(textContent[0]!.text) as ReviewResult;
       expect(parsed.verdict).toBe("NEEDS_REVISION");
       expect(parsed.issues).toHaveLength(1);
+    });
+  });
+
+  describe("quick_analysis tool", () => {
+    it("has correct input schema", async () => {
+      const { tools } = await client.listTools();
+      const tool = tools.find((t) => t.name === "quick_analysis");
+
+      expect(tool).toBeDefined();
+      expect(tool!.inputSchema.properties).toHaveProperty("content");
+      expect(tool!.inputSchema.required).toContain("content");
+    });
+
+    it("calls runQuickAnalysis and returns structured result", async () => {
+      vi.mocked(runQuickAnalysis).mockResolvedValue({
+        verdict: "SAFE_TO_MERGE",
+        reason: "Approved and CI is green.",
+      });
+
+      const result = await client.callTool({
+        name: "quick_analysis",
+        arguments: {
+          content: "This PR has been inactive for 9 days, approved, CI green.",
+        },
+      });
+
+      expect(runQuickAnalysis).toHaveBeenCalledOnce();
+      const textContent = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(textContent[0]!.text) as { verdict: string; reason: string };
+      expect(parsed.verdict).toBe("SAFE_TO_MERGE");
     });
   });
 });
