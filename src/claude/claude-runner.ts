@@ -5,7 +5,8 @@ import type {
   ClaudeRunnerOptions,
   ReviewResult,
 } from "../shared/types.js";
-import { REVIEW_JSON_SCHEMA } from "../shared/types.js";
+import { REVIEW_JSON_SCHEMA, QUICK_ANALYSIS_JSON_SCHEMA } from "../shared/types.js";
+import type { QuickAnalysisResult } from "../shared/types.js";
 
 const DEFAULT_ALLOWED_TOOLS = ["Read", "Grep", "Glob", "LS"];
 
@@ -257,33 +258,42 @@ export async function runClaude(
   });
 }
 
+function isReviewResult(value: unknown): value is ReviewResult {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "verdict" in value &&
+    "issues" in value
+  );
+}
+
+function isQuickAnalysisResult(value: unknown): value is QuickAnalysisResult {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "verdict" in value &&
+    "reason" in value
+  );
+}
+
 /**
- * Run a structured code review via `claude -p --json-schema`.
- *
- * Wraps the prompt in a reviewer system instruction and constrains the output
- * to the {@link ReviewResult} schema. The model defaults to `"opus"`.
- *
- * @param prompt - The content to review (code, plan, diff, etc.).
- * @param options - Override model, max turns, cwd, or allowed tools.
- * @returns Parsed {@link ReviewResult} with verdict, issues, and suggestions.
- * @throws {Error} On spawn failure, non-zero exit, timeout, output overflow,
- *   or if the response does not match the expected review structure.
- *
- * @example
- * ```ts
- * const review = await runClaudeReview("function add(a, b) { return a + b; }");
- * if (review.verdict === "APPROVED") console.log("Ship it!");
- * ```
+ * Shared spawn + `--json-schema` + parse machinery for any `claude -p`
+ * call that must return one specific JSON shape. `runClaudeReview` and
+ * `runQuickAnalysis` are both thin wrappers around this with their own
+ * schema and validator.
  */
-export async function runClaudeReview(
+function runClaudeStructured<T>(
   prompt: string,
+  schema: object,
+  validate: (value: unknown) => value is T,
+  invalidMessage: string,
   options: ClaudeRunnerOptions = {},
-): Promise<ReviewResult> {
+): Promise<T> {
   const envConfig = getEnvConfig();
   const merged: ClaudeRunnerOptions = { ...envConfig, ...options };
   merged.model = merged.model ?? "opus";
 
-  const schemaStr = JSON.stringify(REVIEW_JSON_SCHEMA);
+  const schemaStr = JSON.stringify(schema);
 
   const reviewPrompt = `You are a code reviewer. Analyze the following and respond with a structured review.
 
@@ -292,7 +302,7 @@ ${prompt}`;
   const args = buildArgs(merged);
   args.push("--json-schema", schemaStr);
 
-  return new Promise<ReviewResult>((resolve, reject) => {
+  return new Promise<T>((resolve, reject) => {
     const proc = spawn("claude", args, {
       stdio: ["pipe", "pipe", "pipe"],
       cwd: merged.cwd,
@@ -358,24 +368,19 @@ ${prompt}`;
           const output = extractResultEntry(parsed);
 
           // --json-schema puts the result in structured_output, not result
-          let review: unknown;
+          let value: unknown;
           if (output.structured_output !== undefined) {
-            review = output.structured_output;
+            value = output.structured_output;
           } else if (output.result) {
-            review = JSON.parse(output.result);
+            value = JSON.parse(output.result);
           } else {
             throw new Error("No review content in claude output");
           }
 
-          if (
-            !review ||
-            typeof review !== "object" ||
-            !("verdict" in review) ||
-            !("issues" in review)
-          ) {
-            throw new Error("Review result missing required fields");
+          if (!validate(value)) {
+            throw new Error(invalidMessage);
           }
-          resolve(review as ReviewResult);
+          resolve(value);
         } catch (err) {
           reject(
             new Error(
@@ -386,4 +391,41 @@ ${prompt}`;
       });
     });
   });
+}
+
+export async function runClaudeReview(
+  prompt: string,
+  options: ClaudeRunnerOptions = {},
+): Promise<ReviewResult> {
+  return runClaudeStructured(
+    prompt,
+    REVIEW_JSON_SCHEMA,
+    isReviewResult,
+    "Review result missing required fields",
+    options,
+  );
+}
+
+/**
+ * Run a lightweight, non-agentic triage over a stale PR review via
+ * `claude -p --json-schema`, constrained to {@link QuickAnalysisResult}.
+ * Unlike {@link runClaudeReview}, this does not re-read the diff — it is
+ * meant to be cheap enough to run over dozens of PRs in one batch.
+ *
+ * @example
+ * ```ts
+ * const { verdict, reason } = await runQuickAnalysis("This PR has had no activity in 9 days...");
+ * ```
+ */
+export async function runQuickAnalysis(
+  prompt: string,
+  options: ClaudeRunnerOptions = {},
+): Promise<QuickAnalysisResult> {
+  return runClaudeStructured(
+    prompt,
+    QUICK_ANALYSIS_JSON_SCHEMA,
+    isQuickAnalysisResult,
+    "Quick analysis result missing required fields",
+    options,
+  );
 }

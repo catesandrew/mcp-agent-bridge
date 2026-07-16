@@ -10,7 +10,7 @@ vi.mock("node:child_process", () => ({
 
 // Import after mocking
 const { spawn } = await import("node:child_process");
-const { runClaude, runClaudeReview } = await import("../claude-runner.js");
+const { runClaude, runClaudeReview, runQuickAnalysis } = await import("../claude-runner.js");
 
 function createMockProcess(output: string, exitCode = 0): ChildProcess {
   const stdout = new PassThrough();
@@ -357,5 +357,61 @@ describe("runClaudeReview", () => {
     expect(result.verdict).toBe("NEEDS_REVISION");
     expect(result.issues).toHaveLength(1);
     expect(result.issues[0]!.severity).toBe("critical");
+  });
+});
+
+describe("runQuickAnalysis", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("passes --json-schema and returns the parsed verdict/reason", async () => {
+    const analysis = { verdict: "NUDGE_AUTHOR", reason: "Waiting on the author's response." };
+
+    const mockOutput: ClaudeJsonOutput = {
+      type: "result",
+      subtype: "success",
+      cost_usd: 0.01,
+      is_error: false,
+      duration_ms: 2000,
+      duration_api_ms: 1800,
+      num_turns: 1,
+      result: JSON.stringify(analysis),
+      session_id: "sess-quick",
+    };
+
+    vi.mocked(spawn).mockReturnValue(
+      createMockProcess(JSON.stringify(mockOutput)),
+    );
+
+    const result = await runQuickAnalysis("this PR has been quiet for 9 days");
+
+    const args = vi.mocked(spawn).mock.calls[0]![1] as string[];
+    expect(args).toContain("--json-schema");
+
+    expect(result.verdict).toBe("NUDGE_AUTHOR");
+    expect(result.reason).toBe("Waiting on the author's response.");
+  });
+
+  it("rejects when the model's output is missing verdict or reason", async () => {
+    const mockOutput: ClaudeJsonOutput = {
+      type: "result",
+      subtype: "success",
+      cost_usd: 0.01,
+      is_error: false,
+      duration_ms: 2000,
+      duration_api_ms: 1800,
+      num_turns: 1,
+      result: JSON.stringify({ verdict: "NUDGE_AUTHOR" }),
+      session_id: "sess-quick-2",
+    };
+
+    vi.mocked(spawn).mockReturnValue(
+      createMockProcess(JSON.stringify(mockOutput)),
+    );
+
+    await expect(runQuickAnalysis("prompt")).rejects.toThrow(
+      /missing required fields/,
+    );
   });
 });
