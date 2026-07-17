@@ -94,6 +94,7 @@
       <ComponentGroupRef Id="McpProxyFiles" />
       <ComponentRef Id="NssmExeComponent" />
       <ComponentRef Id="RegisterScriptComponent" />
+      <ComponentRef Id="CheckPrereqsScriptComponent" />
       <ComponentRef Id="PathEnvComponent" />
     </Feature>
 
@@ -224,10 +225,28 @@
     <!-- ================= Task 7: Non-blocking prerequisite check =================
          Warns (never blocks — Design Decision 5) if node.exe/npx, or a
          SELECTED feature's underlying agent CLI (claude/codex/copilot),
-         isn't found on the MACHINE PATH. Runs check-prereqs.ps1 as an
-         IMMEDIATE CustomAction in the UI sequence (not InstallExecuteSequence)
-         because Task 7's acceptance criteria call for a future warning
-         dialog, and deferred actions cannot interact with the UI at all. -->
+         isn't found on the MACHINE PATH.
+
+         FIX (post-architect-review): the original authoring ran this in
+         InstallUISequence, referencing [SCRIPTSDIR]check-prereqs.ps1 — but
+         (a) check-prereqs.ps1 had no <File>/<Component> anywhere, so it was
+         never installed at all, and (b) even if it had been, UI sequence
+         runs entirely BEFORE InstallExecuteSequence's InstallFiles, so
+         [SCRIPTSDIR] would still have resolved to an empty directory. The
+         script could never execute or log — a real, silent bug, not just an
+         "untestable from macOS" gap. Since no interactive dialog exists in
+         this version anyway (see KNOWN GAP note below), there was never a
+         reason to prefer the UI sequence over the execute sequence. Fixed by
+         moving to the exact same proven pattern as the 3 service
+         registrations: a real Component/File, a deferred CustomAction via
+         the same-Id SetProperty->WixQuietExec idiom, scheduled in
+         InstallExecuteSequence After="InstallFiles". WixQuietExec still
+         captures the script's stdout into the MSI log regardless of UI
+         level, which is what satisfies "always writes results to the log". -->
+
+    <Component Id="CheckPrereqsScriptComponent" Directory="SCRIPTSDIR" Guid="*">
+      <File Id="CheckPrereqsScriptFile" Source="scripts\check-prereqs.ps1" KeyPath="yes" />
+    </Component>
 
     <!-- Feature-selection flags: resolve each service's requested-install
          state (native WiX "&FeatureId=3" == INSTALLSTATE_LOCAL condition
@@ -236,43 +255,34 @@
          building check-prereqs.ps1's command line, so the script only checks
          the CLI for features the user actually selected. A property left
          unset by its conditioned SetProperty simply keeps its declared ""
-         default (declarative "else" branch). -->
+         default (declarative "else" branch). Sequence="execute" now (was
+         "ui") to match CheckPrereqs's new home in InstallExecuteSequence. -->
     <Property Id="PREREQ_CLAUDE_FLAG" Value="" />
     <Property Id="PREREQ_CODEX_FLAG" Value="" />
     <Property Id="PREREQ_COPILOT_FLAG" Value="" />
 
     <SetProperty Id="PREREQ_CLAUDE_FLAG" Value="-CheckClaude"
-                 Before="WixQuietExecCmdLine" After="CostFinalize" Sequence="ui"
+                 Before="CheckPrereqs" Sequence="execute"
                  Condition="&amp;ClaudeService=3" />
     <SetProperty Id="PREREQ_CODEX_FLAG" Value="-CheckCodex"
-                 Before="WixQuietExecCmdLine" After="CostFinalize" Sequence="ui"
+                 Before="CheckPrereqs" Sequence="execute"
                  Condition="&amp;CodexService=3" />
     <SetProperty Id="PREREQ_COPILOT_FLAG" Value="-CheckCopilot"
-                 Before="WixQuietExecCmdLine" After="CostFinalize" Sequence="ui"
+                 Before="CheckPrereqs" Sequence="execute"
                  Condition="&amp;CopilotService=3" />
 
-    <!-- WixQuietExec's IMMEDIATE-execution form reads its command line from
-         the well-known "WixQuietExecCmdLine" property — a fixed reserved
-         name distinct from the same-Id-as-the-CA SetProperty trick used
-         above for the three DEFERRED service-registration actions. That
-         trick exists only to bridge a property into a deferred action's
-         restricted CustomActionData view; it does not apply here since
-         CheckPrereqs is immediate and can read ordinary properties. Confirmed
-         via WiX/FireGiant docs for WixQuietExec: "define a Property with Id
-         WixQuietExecCmdLine set to your command line, then reference
-         WixQuietExec as the DllEntry in a CustomAction with
-         Execute=immediate." WixQuietExec also logs the command line and all
-         console output from the invoked process automatically — this is what
-         satisfies "always writes results to the MSI log regardless of UI
-         level" (log emission is independent of whether any dialog is ever
-         shown). -->
-    <SetProperty Id="WixQuietExecCmdLine"
+    <!-- Same same-Id SetProperty -> deferred CustomAction pattern already
+         used for the 3 service-registration actions (see e.g.
+         InstallClaudeService above) — NOT the WixQuietExecCmdLine immediate
+         form, since CheckPrereqs is now deferred. -->
+    <SetProperty Id="CheckPrereqs"
                  Value="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]check-prereqs.ps1&quot; [PREREQ_CLAUDE_FLAG] [PREREQ_CODEX_FLAG] [PREREQ_COPILOT_FLAG]"
-                 Before="CheckPrereqs" Sequence="ui" />
+                 Before="CheckPrereqs" Sequence="execute" />
     <CustomAction Id="CheckPrereqs"
                   BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
                   DllEntry="WixQuietExec"
-                  Execute="immediate"
+                  Execute="deferred"
+                  Impersonate="no"
                   Return="ignore" />
     <!-- Return="ignore" is redundant with check-prereqs.ps1's own guaranteed
          exit 0 (Design Decision 5: never block), but is defense in depth at
@@ -287,28 +297,28 @@
          standard action that copies all File-based components; scheduling
          each InstallXService custom action After="InstallFiles" covers all
          three since they all depend on the same InstallFiles pass having
-         completed, regardless of which subset of features was selected. -->
+         completed, regardless of which subset of features was selected.
+         CheckPrereqs runs alongside them for the same reason — its own
+         script file must be on disk first too. -->
     <InstallExecuteSequence>
       <Custom Action="InstallClaudeService" After="InstallFiles" Condition="&amp;ClaudeService=3" />
       <Custom Action="InstallCodexService" After="InstallFiles" Condition="&amp;CodexService=3" />
       <Custom Action="InstallCopilotService" After="InstallFiles" Condition="&amp;CopilotService=3" />
+      <Custom Action="CheckPrereqs" After="InstallFiles" />
     </InstallExecuteSequence>
     <!-- Condition "&amp;FeatureId=3" (INSTALLSTATE_LOCAL) ensures each
          service's nssm-install script only runs when that specific feature
          was actually selected for install — the earlier, corresponding
          ServiceControl Start="install" is itself already scoped to its own
          Feature's Component, so it won't try to start a service that was
-         never selected/registered. -->
+         never selected/registered. CheckPrereqs has no such condition since
+         it always runs (it's what decides, via its own -Check* flags, which
+         CLIs to actually probe) — this also means it now runs the same way
+         under /quiet as interactively, which is fine: it was always meant to
+         "always write results to the log regardless of UI level" per
+         Design Decision 5/US-07, and a deferred execute-sequence action has
+         no UI to skip in the first place. -->
 
-    <!-- CRITICAL (prd.json US-07): CheckPrereqs must be skipped ENTIRELY
-         when UILevel <= 3 (silent "/quiet" == 2, basic "/passive" == 3) —
-         the Condition below is authored as explicit defense-in-depth per the
-         acceptance criteria's literal wording, rather than relying solely on
-         msiexec's own tendency not to process InstallUISequence at all under
-         those UI levels. -->
-    <InstallUISequence>
-      <Custom Action="CheckPrereqs" After="CostFinalize" Condition="UILevel &gt; 3" />
-    </InstallUISequence>
     <!-- KNOWN GAP / FAST-FOLLOW, documented honestly rather than left
          silent: the interactive WARNING DIALOG described in Design
          Decision 5 ("a non-blocking dialog... listing any missing

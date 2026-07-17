@@ -8,16 +8,21 @@ task breakdown.
 
 ## Layout
 
-- `Product.wxs` — the WiX v5 package definition (currently a placeholder
-  skeleton; see Tasks 4-8 of the plan for the full authoring work).
-- `build.ps1` — orchestrates binary staging and the `wix build` invocation
-  (currently a stub; see Tasks 3 and 9).
-- `vendor/` — checked-in build inputs (NSSM, a vendored `mcp-proxy@6.4.4`)
-  so the MSI never needs to fetch anything over the network at build or
-  install time. Populated by Task 2.
+- `Product.wxs` — the full WiX v5 package definition: 3 NSSM-wrapped
+  Windows Services (Claude/Codex/Copilot), PATH, port properties, upgrade
+  handling, and a non-blocking prerequisite check.
+- `build.ps1` — orchestrates binary staging (`scripts/stage-binaries.ps1`)
+  and the `wix build` invocation with all required preprocessor variables.
+- `scripts/` — `stage-binaries.ps1` (checksum-verifies + renames the 3
+  release binaries), `register-service.ps1` (the actual NSSM registration
+  logic, invoked once per service via a WiX deferred CustomAction),
+  `check-prereqs.ps1` (the non-blocking Node/CLI prerequisite check).
+- `vendor/` — checked-in build inputs (NSSM, a vendored `mcp-proxy@6.4.4`
+  with its own runtime dependencies installed) so the MSI never needs to
+  fetch anything over the network at build or install time.
 - `bin/`, `dist/` — build outputs (git-ignored, not checked in).
 
-## Building locally (once complete)
+## Building locally
 
 Install the WiX v5 dotnet tool. **Pin to exactly `5.0.2`** — do NOT install
 the latest version. Newer WiX CLI releases (v7+) require accepting a paid
@@ -26,17 +31,20 @@ direct testing in this session):
 
 ```
 dotnet tool install --global wix --version 5.0.2
+wix extension add WixToolset.Util.wixext/5.0.2
 ```
 
-Then build the MSI:
+Then run the build script, pointing it at a directory containing the 3
+raw release binaries + `checksums-windows-x64.txt` (e.g. downloaded from a
+`release-windows.yml` run):
 
 ```
-wix build installer/windows/Product.wxs -out installer/windows/dist/mcp-agent-bridge-windows-x64.msi -arch x64
+./installer/windows/build.ps1 -ArtifactsDir <path-to-release-assets>
 ```
 
-Once `build.ps1` is fully implemented (Task 9), the preferred entry point
-will be running that script directly, which stages/renames the release
-binaries and invokes `wix build` with all required preprocessor variables.
+This stages/renames the binaries and invokes `wix build` with all required
+preprocessor variables, producing
+`installer/windows/dist/mcp-agent-bridge-windows-x64.msi`.
 
 ## A note on build verification
 
