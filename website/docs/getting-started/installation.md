@@ -60,6 +60,14 @@ The included installer script handles everything:
 
 ### Windows
 
+The recommended way to install on Windows is the double-click **[MSI installer](../deployment/windows-msi)**
+-- it registers all three services (Claude, Codex, Copilot) as Windows Services with sane defaults,
+no PowerShell required. See [Windows MSI Installer](../deployment/windows-msi) for download,
+verification, and configuration details.
+
+If you'd rather script the install (CI, provisioning, or environments where MSI installs are
+restricted), `install.ps1` remains available:
+
 ```powershell
 # Build and install binaries
 .\examples\windows\install.ps1
@@ -71,7 +79,7 @@ The included installer script handles everything:
 .\examples\windows\install.ps1 -HttpService
 ```
 
-See [Windows Deployment](../deployment/windows) for full details.
+See [Windows Deployment](../deployment/windows) for full details on the `install.ps1` approach.
 
 ## Verify
 
