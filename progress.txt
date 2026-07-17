@@ -222,3 +222,54 @@ placeholders".
 
 ALL 10 PRD STORIES NOW PASS AND ARCHITECT-APPROVED. Proceeding to deslop + regression re-verify +
 cancel per Ralph's mandated chain.
+
+[REAL CI RUN #1 - PARTIAL FAILURE, FIXED] User triggered the dry-run build-msi job for real on
+windows-latest. Task 3's stage-binaries.ps1 worked PERFECTLY first try: checksum-verified and
+renamed all 3 binaries correctly, zero issues — the first genuinely-confirmed-working piece of this
+whole installer. wix build itself then failed: `error WIX0144: The extension
+'WixToolset.Util.wixext' could not be found.`
+
+ROOT CAUSE (confirmed via research, not guessed): `wix extension add WixToolset.Util.wixext/5.0.2`
+(no --global flag) caches the extension under a `.wix\extensions\` folder rooted at the CURRENT
+WORKING DIRECTORY at the moment `add` ran — the CI step ran from the repo root. build.ps1 then does
+`Push-Location installer/windows/` before running `wix build`, a DIFFERENT directory — and WiX does
+NOT walk up parent directories looking for a local extension cache the way git/npm/dotnet-tool
+manifests do (confirmed: an upstream GitHub issue with this exact repro shape was closed "not
+planned" — this is intentional design, not a bug FireGiant will fix). Fixed: added `--global`/`-g`
+to both the CI workflow's extension-add step and the README's local-build instructions — a global
+add caches under %USERPROFILE%\.wix\extensions\, independent of cwd, which the docs confirm is
+checked regardless of which directory `wix build` runs from.
+
+LEARNING: the earlier local verification claim ("ran `wix extension add` for real on macOS, confirmed
+via `wix extension list`") was almost certainly subject to this exact same scoping gap — that add
+very likely ran from the repo root too, so it never actually proved build.ps1's own `wix build`
+(which cd's into installer/windows/) could find the extension. A "the command succeeded" check is
+not the same as "the thing that needs it later can actually see it." Real CI is what caught this.
+
+[REAL CI RUN #2 - 3 MORE COMPILER BUGS FOUND+FIXED] After the --global extension fix, wix build got
+further and produced real compiler diagnostics (not extension-resolution noise) — genuinely useful
+signal:
+1. WIX0230: PathEnvComponent used Guid="*" (auto-generated) combined with Component-level
+   KeyPath="yes" (directory-as-keypath, the standard idiom for an env-var-only component with no
+   file to key off). WiX rejects "*" for this specific pattern — no deterministic per-file identity
+   to derive a stable Guid from. Fixed: assigned a fixed, explicit Guid
+   (886FFD9F-6BF1-4B67-95C0-C441CC64AF78) that must never change once shipped, same rule as the
+   Package's own UpgradeCode.
+2. WIX0005 (x6): all 3 services' SetProperty+CustomAction pairs were nested INSIDE their <Feature>
+   element as children — invalid per WiX schema (Feature does not accept SetProperty/CustomAction as
+   children). This was a real authoring mistake — the CheckPrereqs pair (Task 7) was already correctly
+   placed as a Package-level sibling, but the 3 original service pairs (authored earlier, before that
+   convention was even established) were not. Fixed: moved all 3 pairs out of their Feature blocks to
+   be Package-level siblings, immediately after each Feature's closing tag.
+3. WIX0006 + WIX1006 (x3): PREREQ_CLAUDE_FLAG/CODEX/COPILOT were declared as
+   `<Property Id="..." Value="" />` — WiX rejects an explicit empty-string Value outright. Fixed by
+   removing the Property declarations entirely: a property doesn't need pre-declaring for a
+   [PROPNAME] token to resolve (to empty, when never set) in a Formatted string, and the conditioned
+   SetProperty actions already handle the "set when selected" half.
+
+LEARNING: none of these 4 bug classes were caught by python3's `xml.etree.ElementTree` well-
+formedness check throughout this whole Ralph run — that check only validates the file IS valid XML
+(tags balanced, well-nested), not that it's valid PER THE WIX SCHEMA (correct element nesting rules,
+attribute value constraints, semantic Guid requirements). "XML well-formed" was never a substitute
+for "WiX build succeeds" — it just was the only mechanical check available from a macOS session with
+no working wix build. Real CI is doing exactly the job it was always going to need to do.

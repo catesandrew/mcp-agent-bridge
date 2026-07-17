@@ -124,7 +124,14 @@
       <File Id="RegisterServiceScriptFile" Source="scripts\register-service.ps1" KeyPath="yes" />
     </Component>
 
-    <Component Id="PathEnvComponent" Directory="BINDIR" Guid="*" KeyPath="yes">
+    <!-- Fixed (not auto-generated "*") Guid required here: this component's
+         KeyPath is the directory itself (Component/@KeyPath="yes", not a
+         child File/RegistryValue), used for env-var-only components with no
+         file to key off of — WiX rejects "*" for that pattern since there's
+         no deterministic per-file identity to derive a stable Guid from
+         (confirmed by a real WIX0230 build error). This Guid must never
+         change once shipped, same as the Package's own UpgradeCode. -->
+    <Component Id="PathEnvComponent" Directory="BINDIR" Guid="886FFD9F-6BF1-4B67-95C0-C441CC64AF78" KeyPath="yes">
       <Environment Id="AddInstallBinToSystemPath"
                    Name="PATH"
                    Value="[BINDIR]"
@@ -152,25 +159,29 @@
              MSI ServiceControl table's own docs: "This column can be used to
              control a service that is not installed [by this package]." -->
       </Component>
-
-      <!-- Immediate SetProperty + deferred CustomAction pair, using the
-           official WixQuietExec pattern (WixToolset.Util.wixext): Windows
-           Installer copies the property's resolved value into
-           CustomActionData because it shares the same Id as the deferred
-           CustomAction that follows. All [INSTALLFOLDER]/[CLAUDEPORT]-style
-           tokens below are resolved to plain literal values at this
-           (immediate) point, before being handed to the deferred action. -->
-      <SetProperty Id="InstallClaudeService"
-                   Value="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]register-service.ps1&quot; -ServiceName McpBridgeClaude -NssmExe &quot;[NSSMDIR]nssm.exe&quot; -McpProxyEntry &quot;[PROXYDIR]dist\bin\mcp-proxy.mjs&quot; -TargetExe &quot;[BINDIR]claude-mcp-server.exe&quot; -Port [CLAUDEPORT] -PortEnvVar CLAUDE_MCP_HTTP_PORT -InstallRoot &quot;[INSTALLFOLDER]&quot;"
-                   Before="InstallClaudeService"
-                   Sequence="execute" />
-      <CustomAction Id="InstallClaudeService"
-                    BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
-                    DllEntry="WixQuietExec"
-                    Execute="deferred"
-                    Impersonate="no"
-                    Return="check" />
     </Feature>
+
+    <!-- Immediate SetProperty + deferred CustomAction pair, using the
+         official WixQuietExec pattern (WixToolset.Util.wixext): Windows
+         Installer copies the property's resolved value into
+         CustomActionData because it shares the same Id as the deferred
+         CustomAction that follows. All [INSTALLFOLDER]/[CLAUDEPORT]-style
+         tokens below are resolved to plain literal values at this
+         (immediate) point, before being handed to the deferred action.
+         MUST be a Package-level sibling of Feature, not nested inside it —
+         WiX schema does not allow SetProperty/CustomAction as Feature
+         children (confirmed by a real WIX0005 build error: "The Feature
+         element contains an unexpected child element"). -->
+    <SetProperty Id="InstallClaudeService"
+                 Value="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]register-service.ps1&quot; -ServiceName McpBridgeClaude -NssmExe &quot;[NSSMDIR]nssm.exe&quot; -McpProxyEntry &quot;[PROXYDIR]dist\bin\mcp-proxy.mjs&quot; -TargetExe &quot;[BINDIR]claude-mcp-server.exe&quot; -Port [CLAUDEPORT] -PortEnvVar CLAUDE_MCP_HTTP_PORT -InstallRoot &quot;[INSTALLFOLDER]&quot;"
+                 Before="InstallClaudeService"
+                 Sequence="execute" />
+    <CustomAction Id="InstallClaudeService"
+                  BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
+                  DllEntry="WixQuietExec"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
 
     <!-- ================= Codex MCP Server ================= -->
     <Feature Id="CodexService" Title="Codex MCP Server" Level="1">
@@ -184,18 +195,18 @@
                          Remove="uninstall"
                          Wait="yes" />
       </Component>
-
-      <SetProperty Id="InstallCodexService"
-                   Value="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]register-service.ps1&quot; -ServiceName McpBridgeCodex -NssmExe &quot;[NSSMDIR]nssm.exe&quot; -McpProxyEntry &quot;[PROXYDIR]dist\bin\mcp-proxy.mjs&quot; -TargetExe &quot;[BINDIR]codex-mcp-server.exe&quot; -Port [CODEXPORT] -PortEnvVar CODEX_MCP_HTTP_PORT -InstallRoot &quot;[INSTALLFOLDER]&quot;"
-                   Before="InstallCodexService"
-                   Sequence="execute" />
-      <CustomAction Id="InstallCodexService"
-                    BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
-                    DllEntry="WixQuietExec"
-                    Execute="deferred"
-                    Impersonate="no"
-                    Return="check" />
     </Feature>
+
+    <SetProperty Id="InstallCodexService"
+                 Value="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]register-service.ps1&quot; -ServiceName McpBridgeCodex -NssmExe &quot;[NSSMDIR]nssm.exe&quot; -McpProxyEntry &quot;[PROXYDIR]dist\bin\mcp-proxy.mjs&quot; -TargetExe &quot;[BINDIR]codex-mcp-server.exe&quot; -Port [CODEXPORT] -PortEnvVar CODEX_MCP_HTTP_PORT -InstallRoot &quot;[INSTALLFOLDER]&quot;"
+                 Before="InstallCodexService"
+                 Sequence="execute" />
+    <CustomAction Id="InstallCodexService"
+                  BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
+                  DllEntry="WixQuietExec"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
 
     <!-- ================= Copilot MCP Server ================= -->
     <Feature Id="CopilotService" Title="Copilot MCP Server" Level="1">
@@ -209,18 +220,18 @@
                          Remove="uninstall"
                          Wait="yes" />
       </Component>
-
-      <SetProperty Id="InstallCopilotService"
-                   Value="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]register-service.ps1&quot; -ServiceName McpBridgeCopilot -NssmExe &quot;[NSSMDIR]nssm.exe&quot; -McpProxyEntry &quot;[PROXYDIR]dist\bin\mcp-proxy.mjs&quot; -TargetExe &quot;[BINDIR]copilot-mcp-server.exe&quot; -Port [COPILOTPORT] -PortEnvVar COPILOT_MCP_HTTP_PORT -InstallRoot &quot;[INSTALLFOLDER]&quot;"
-                   Before="InstallCopilotService"
-                   Sequence="execute" />
-      <CustomAction Id="InstallCopilotService"
-                    BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
-                    DllEntry="WixQuietExec"
-                    Execute="deferred"
-                    Impersonate="no"
-                    Return="check" />
     </Feature>
+
+    <SetProperty Id="InstallCopilotService"
+                 Value="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]register-service.ps1&quot; -ServiceName McpBridgeCopilot -NssmExe &quot;[NSSMDIR]nssm.exe&quot; -McpProxyEntry &quot;[PROXYDIR]dist\bin\mcp-proxy.mjs&quot; -TargetExe &quot;[BINDIR]copilot-mcp-server.exe&quot; -Port [COPILOTPORT] -PortEnvVar COPILOT_MCP_HTTP_PORT -InstallRoot &quot;[INSTALLFOLDER]&quot;"
+                 Before="InstallCopilotService"
+                 Sequence="execute" />
+    <CustomAction Id="InstallCopilotService"
+                  BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
+                  DllEntry="WixQuietExec"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
 
     <!-- ================= Task 7: Non-blocking prerequisite check =================
          Warns (never blocks — Design Decision 5) if node.exe/npx, or a
@@ -257,9 +268,16 @@
          unset by its conditioned SetProperty simply keeps its declared ""
          default (declarative "else" branch). Sequence="execute" now (was
          "ui") to match CheckPrereqs's new home in InstallExecuteSequence. -->
-    <Property Id="PREREQ_CLAUDE_FLAG" Value="" />
-    <Property Id="PREREQ_CODEX_FLAG" Value="" />
-    <Property Id="PREREQ_COPILOT_FLAG" Value="" />
+    <!-- No <Property> declarations for these three at all (removed after a
+         real build error): WiX rejects an explicit empty Value ("cannot be
+         an empty string"), and a bare declaration with no Value/Admin/
+         Secure/Hidden attribute is itself just dropped with a warning ("the
+         Property element is being ignored") — so declaring them accomplishes
+         nothing either way. An MSI property does not need to be pre-declared
+         for a [PROPNAME] token in a Formatted string to work: if the
+         conditioned SetProperty below never fires (feature not selected),
+         [PREREQ_CLAUDE_FLAG] simply resolves to empty in the CheckPrereqs
+         command line, which is exactly the intended "else" branch. -->
 
     <!-- Explicit chain (CLAUDE -> CODEX -> COPILOT -> CheckPrereqs's own
          command-line builder below) rather than relying on all four sharing
