@@ -29,14 +29,26 @@ documented design, not a field-tested guarantee, until that verification lands.
 
 ## Download and verify
 
-`.github/workflows/release-windows.yml` has a `build-msi` job (tag-triggered releases only) that
-builds `mcp-agent-bridge-windows-x64.msi` and a matching `checksums-windows-x64-msi.txt` and attaches
-both to the GitHub Release, alongside the three raw `.exe` server binaries.
+`.github/workflows/release-windows.yml` has a `build-msi` job that builds
+`mcp-agent-bridge-windows-x64.msi` and a matching `checksums-windows-x64-msi.txt`. It runs two ways:
 
-:::caution CI job not yet run for real
-This job is authored and YAML-syntax-validated but has not actually been exercised by a real tag push
-in this project's authoring environment (no working `gh` auth here to trigger/observe one). Treat it
-as the documented, intended release flow until the first real tagged release confirms it end-to-end.
+- **Tag push** (`git push origin v1.2.3`) -- the real release path. Attaches the MSI + checksum to the
+  GitHub Release alongside the three raw `.exe` server binaries `build` already produces there.
+- **Manual `workflow_dispatch`** (any branch, no tag needed) -- a dry run to verify the MSI job itself
+  works *before* cutting a real release. Pulls the raw binaries from `build`'s workflow artifact
+  instead of a release (none exists yet on a branch run), and uploads the resulting MSI as its own
+  downloadable workflow artifact (`mcp-agent-bridge-windows-x64-msi`) instead of attaching it to a
+  release. Trigger it from the Actions tab ("Release (Windows x64)" -> "Run workflow") or:
+
+  ```bash
+  gh workflow run "Release (Windows x64)" --repo catesandrew/mcp-agent-bridge
+  ```
+
+:::caution Not yet run for real
+This job is authored and YAML-syntax-validated but has not actually been exercised by a real run --
+tag push or dry run -- in this project's authoring environment (no working `gh` auth here to
+trigger/observe one). The dry-run path above is the recommended first thing to try, since it needs no
+tag and produces a downloadable MSI artifact for testing on a real Windows machine.
 :::
 
 1. Download `mcp-agent-bridge-windows-x64.msi` and `checksums-windows-x64-msi.txt` from the

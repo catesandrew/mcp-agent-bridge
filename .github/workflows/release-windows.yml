@@ -56,15 +56,17 @@ jobs:
   build-msi:
     name: Build Windows MSI installer
     needs: build
-    # Only meaningful on a real release: the raw .exe binaries + checksums
-    # are only attached to a GitHub Release (via softprops/action-gh-release
-    # in the `build` job above) when triggered by a tag push — the
-    # `workflow_dispatch` path instead uploads them as a plain workflow
-    # artifact and never creates a release for this job to attach the MSI
-    # to. See installer/windows/README.md and progress.txt (US-09) for why
-    # this job pulls its inputs from the release assets rather than
-    # actions/download-artifact.
-    if: startsWith(github.ref, 'refs/tags/')
+    # Runs on every trigger now, not just tag pushes — a manual
+    # workflow_dispatch (any branch, no tag needed) is the intended way to
+    # verify this job actually works before ever cutting a real release. On
+    # a tag push, inputs come from the GitHub Release the `build` job just
+    # created (softprops/action-gh-release); otherwise (workflow_dispatch on
+    # a branch, no release exists yet) inputs come from the workflow
+    # artifact `build` uploads in that case instead (actions/upload-artifact,
+    # name: binaries-windows-x64 — see the `build` job above). Same split for
+    # publishing: a tag push attaches the MSI to the release, a dry run
+    # instead uploads it as its own downloadable workflow artifact so it can
+    # be fetched and installed on a real Windows machine for a first test.
     runs-on: windows-latest
 
     steps:
@@ -84,13 +86,21 @@ jobs:
         # extension has been added to the local cache first.
         run: wix extension add WixToolset.Util.wixext/5.0.2
 
-      - name: Download release binaries + checksums
+      - name: Download release binaries + checksums (tag push)
+        if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
           gh release download ${{ github.ref_name }} --dir release-assets --repo ${{ github.repository }}
+
+      - name: Download binaries artifact (dry run)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries-windows-x64
+          path: release-assets
 
       - name: Build MSI
         shell: pwsh
@@ -104,7 +114,8 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $msi -Algorithm SHA256).Hash.ToLower()
           "$hash  mcp-agent-bridge-windows-x64.msi" | Out-File -FilePath "installer/windows/dist/checksums-windows-x64-msi.txt" -Encoding ascii -NoNewline
 
-      - name: Upload MSI to release
+      - name: Upload MSI to release (tag push)
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |
@@ -112,3 +123,12 @@ jobs:
             installer/windows/dist/checksums-windows-x64-msi.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload MSI artifact (dry run)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-agent-bridge-windows-x64-msi
+          path: |
+            installer/windows/dist/mcp-agent-bridge-windows-x64.msi
+            installer/windows/dist/checksums-windows-x64-msi.txt
