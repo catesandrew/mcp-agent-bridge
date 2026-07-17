@@ -273,3 +273,34 @@ formedness check throughout this whole Ralph run — that check only validates t
 attribute value constraints, semantic Guid requirements). "XML well-formed" was never a substitute
 for "WiX build succeeds" — it just was the only mechanical check available from a macOS session with
 no working wix build. Real CI is doing exactly the job it was always going to need to do.
+
+[REAL CI RUN #3 - LINKER ERROR FOUND+FIXED] After fixing the 4 compiler-level errors (run #2), wix
+build progressed to the LINKER stage and hit a new class of bug: WIX0094 "The identifier
+'WixAction:InstallExecuteSequence/PREREQ_CODEX_FLAG' could not be found" (and the same for
+PREREQ_COPILOT_FLAG).
+
+ROOT CAUSE (confirmed via research, not guessed): a <SetProperty>'s actual SCHEDULED ACTION NAME
+defaults to "Set" + Id, NOT the bare Id — this is separate from the Property being set (which IS
+named by the bare Id). My PREREQ_CLAUDE_FLAG/CODEX/COPILOT ordering chain (added as a "hardening"
+during the earlier architect re-verification) used Before="PREREQ_CODEX_FLAG" etc, referencing the
+bare Id — but since nothing ever set Action="PREREQ_CODEX_FLAG" explicitly, the actual registered
+action name was "SetPREREQ_CODEX_FLAG", and the bare-Id reference resolved to nothing. A third,
+identical latent break existed in CheckPrereqs's own `After="PREREQ_COPILOT_FLAG"` — masked from the
+build log by linker de-duplication of repeated references to the same missing symbol; would have
+resurfaced on the very next build if only the 2 reported errors had been patched.
+
+Also confirmed WHY the 3 service-registration SetProperty/CustomAction pairs (and CheckPrereqs's own
+Before="CheckPrereqs") never hit this bug: their Before/After values target a CustomAction's LITERAL
+Id (e.g. "InstallClaudeService"), which has its own explicit <Custom Action="..."> entry in
+InstallExecuteSequence and is unambiguous precisely because it differs from that SetProperty's own
+"Set"-prefixed default name — no naming collision, no defect.
+
+Fixed: added `Action="<same as Id>"` to all 3 PREREQ_*_FLAG SetProperty elements, overriding the
+default "Set"+Id action name to match the bare Id already used everywhere in the Before/After chain
+— smaller, more consistent diff than renaming every reference to "SetPREREQ_...".
+
+LEARNING: WiX's compile stage and link stage catch genuinely different bug classes — compile-stage
+errors (schema/attribute violations, run #2) do NOT guarantee link-stage correctness (symbol/action-
+name resolution, run #3). Each real CI round has surfaced a new, distinct class of previously-
+undetectable error. This is expected and exactly why real Windows/CI verification was always the
+plan's stated bottom line, not a formality.

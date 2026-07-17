@@ -288,13 +288,20 @@
          that flag would silently resolve to its "" default and the
          corresponding CLI would go unprobed (log-only consequence, but
          avoidable for one attribute each). -->
-    <SetProperty Id="PREREQ_CLAUDE_FLAG" Value="-CheckClaude"
+    <!-- Action="<same as Id>" on all three (real fix for a real WIX0094
+         linker error): SetProperty's SCHEDULED ACTION NAME defaults to
+         "Set" + Id, not the bare Id — so Before/After values written as the
+         bare Id (e.g. Before="PREREQ_CODEX_FLAG") referenced a symbol that
+         never existed ("Set" + Id wasn't what got written here). Overriding
+         Action to equal Id keeps every Before/After value below exactly as
+         originally authored (no need to rename them to "SetPREREQ_..."). -->
+    <SetProperty Id="PREREQ_CLAUDE_FLAG" Action="PREREQ_CLAUDE_FLAG" Value="-CheckClaude"
                  Before="PREREQ_CODEX_FLAG" Sequence="execute"
                  Condition="&amp;ClaudeService=3" />
-    <SetProperty Id="PREREQ_CODEX_FLAG" Value="-CheckCodex"
+    <SetProperty Id="PREREQ_CODEX_FLAG" Action="PREREQ_CODEX_FLAG" Value="-CheckCodex"
                  Before="PREREQ_COPILOT_FLAG" Sequence="execute"
                  Condition="&amp;CodexService=3" />
-    <SetProperty Id="PREREQ_COPILOT_FLAG" Value="-CheckCopilot"
+    <SetProperty Id="PREREQ_COPILOT_FLAG" Action="PREREQ_COPILOT_FLAG" Value="-CheckCopilot"
                  Before="CheckPrereqs" Sequence="execute"
                  Condition="&amp;CopilotService=3" />
 
