@@ -337,3 +337,16 @@ This exact class of gap (files silently dropped, discovered only via real CI fai
 second time in this Ralph run alone (nssm.exe here; the mcp-proxy node_modules/ vendoring earlier
 was caught proactively rather than by CI, but it's the same root cause: unaudited gitignore
 interaction with vendored binary/build-output-shaped paths).
+
+[REAL CI RUN #5 - SUCCESS] build-msi job completed successfully on windows-latest via
+workflow_dispatch dry run. mcp-agent-bridge-windows-x64.msi built and uploaded as a workflow
+artifact. This is the first real, successful build of this installer after 4 rounds of real bugs
+found and fixed by actual Windows CI (extension cache scoping, 3 WiX schema violations, a linker
+symbol-naming defect, and 9 silently-gitignored vendor files) — none of which were, or could have
+been, caught by the macOS-side XML-well-formedness-only verification used throughout authoring.
+
+REMAINING UNVERIFIED (still true): the MSI has never actually been run with msiexec — service
+registration, NSSM AppParameters quoting, PATH/Environment behavior, port validation, uninstall,
+and upgrade are all still "authored per documented behavior, not install-tested." Next real
+verification step: download the mcp-agent-bridge-windows-x64-msi artifact from that successful run
+and actually install it on a Windows machine.
