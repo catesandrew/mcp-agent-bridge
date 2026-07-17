@@ -16,3 +16,16 @@ installer/windows/dist/
 # MSI build/install time) — override the blanket node_modules/ ignore above.
 !installer/windows/vendor/mcp-proxy/node_modules/
 !installer/windows/vendor/mcp-proxy/node_modules/**
+
+# The bare `dist/` rule above (line 2, meant for build-output directories
+# like packages/*/dist/) also matches this vendored package's OWN dist/ —
+# including dist/bin/mcp-proxy.mjs, the exact file this whole vendoring
+# effort exists to ship. Never actually committed until this fix; override.
+!installer/windows/vendor/mcp-proxy/dist/
+!installer/windows/vendor/mcp-proxy/dist/**
+
+# Vendored nssm.exe (a genuine build input, not a build artifact) — override
+# a common *.exe rule some global gitignore files carry (confirmed present
+# in this environment's ~/.gitignore-global), which would otherwise silently
+# drop this file from every commit despite `git add` reporting success.
+!installer/windows/vendor/nssm/nssm.exe

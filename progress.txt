@@ -304,3 +304,36 @@ errors (schema/attribute violations, run #2) do NOT guarantee link-stage correct
 name resolution, run #3). Each real CI round has surfaced a new, distinct class of previously-
 undetectable error. This is expected and exactly why real Windows/CI verification was always the
 plan's stated bottom line, not a formality.
+
+[REAL CI RUN #4 - MISSING VENDORED FILES FOUND+FIXED, BIGGER THAN IT LOOKED] After fixing the
+WIX0094 linker error, wix build progressed further and hit: `error WIX0103: Cannot find the File
+file 'vendor\nssm\nssm.exe'`. Investigated why — confirmed nssm.exe was gitignored by the LOCAL
+environment's ~/.gitignore-global (`*.exe` rule), completely invisible when reading only the repo's
+own .gitignore, so every prior `git add`/`git commit` had silently NEVER included it, despite
+appearing to succeed every time.
+
+While auditing for other silently-dropped vendor files (comparing disk contents vs `git ls-files`),
+found something much bigger: the repo's OWN `.gitignore` line 2 (`dist/`, a bare unanchored pattern
+meant for build-output dirs like packages/*/dist/) ALSO matches
+installer/windows/vendor/mcp-proxy/dist/ — meaning dist/bin/mcp-proxy.mjs itself, the exact file the
+entire "vendor mcp-proxy directly, no network fetch" design decision exists to ship, was NEVER
+actually committed either, across every single commit in this whole Ralph run. This would have
+caused a much worse, harder-to-diagnose failure later (either wix build failing on that missing
+file specifically, or — worse — succeeding with an incomplete mcp-proxy package that fails at actual
+service-start time on a real Windows install, long after this session ended).
+
+Fixed: added .gitignore negations for both installer/windows/vendor/nssm/nssm.exe and
+installer/windows/vendor/mcp-proxy/dist/ (+ /**), verified via `git add -n` dry-run that exactly the
+9 previously-invisible files (nssm.exe + 8 dist/ files) would now be tracked, then committed them
+for real.
+
+LEARNING (important, process-level): `git commit` succeeding is NOT proof that everything intended
+was actually included — a gitignore rule (local-global OR repo-level, either can silently drop
+files with zero error/warning) can make files invisible to `git add` while the command still exits
+0. From now on, after any commit involving binary/vendored files, verify with
+`comm -23 <(find <dir> -type f | sort) <(git ls-files <dir> | sort)` — diff disk contents against
+what git actually tracks — rather than trusting a clean `git status`/successful `git commit` alone.
+This exact class of gap (files silently dropped, discovered only via real CI failure) is now the
+second time in this Ralph run alone (nssm.exe here; the mcp-proxy node_modules/ vendoring earlier
+was caught proactively rather than by CI, but it's the same root cause: unaudited gitignore
+interaction with vendored binary/build-output-shaped paths).
