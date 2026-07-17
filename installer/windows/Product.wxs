@@ -261,11 +261,20 @@
     <Property Id="PREREQ_CODEX_FLAG" Value="" />
     <Property Id="PREREQ_COPILOT_FLAG" Value="" />
 
+    <!-- Explicit chain (CLAUDE -> CODEX -> COPILOT -> CheckPrereqs's own
+         command-line builder below) rather than relying on all four sharing
+         only a common Before="CheckPrereqs" anchor with no ordering among
+         themselves — architect review flagged that as a latent fragility:
+         without this chain, WiX's tie-break order isn't guaranteed, and if
+         the command-line builder happened to run before a flag was set,
+         that flag would silently resolve to its "" default and the
+         corresponding CLI would go unprobed (log-only consequence, but
+         avoidable for one attribute each). -->
     <SetProperty Id="PREREQ_CLAUDE_FLAG" Value="-CheckClaude"
-                 Before="CheckPrereqs" Sequence="execute"
+                 Before="PREREQ_CODEX_FLAG" Sequence="execute"
                  Condition="&amp;ClaudeService=3" />
     <SetProperty Id="PREREQ_CODEX_FLAG" Value="-CheckCodex"
-                 Before="CheckPrereqs" Sequence="execute"
+                 Before="PREREQ_COPILOT_FLAG" Sequence="execute"
                  Condition="&amp;CodexService=3" />
     <SetProperty Id="PREREQ_COPILOT_FLAG" Value="-CheckCopilot"
                  Before="CheckPrereqs" Sequence="execute"
@@ -274,10 +283,12 @@
     <!-- Same same-Id SetProperty -> deferred CustomAction pattern already
          used for the 3 service-registration actions (see e.g.
          InstallClaudeService above) — NOT the WixQuietExecCmdLine immediate
-         form, since CheckPrereqs is now deferred. -->
+         form, since CheckPrereqs is now deferred. After="PREREQ_COPILOT_FLAG"
+         (in addition to the pre-existing Before="CheckPrereqs" on all three
+         flags above) makes the full ordering deterministic end-to-end. -->
     <SetProperty Id="CheckPrereqs"
                  Value="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]check-prereqs.ps1&quot; [PREREQ_CLAUDE_FLAG] [PREREQ_CODEX_FLAG] [PREREQ_COPILOT_FLAG]"
-                 Before="CheckPrereqs" Sequence="execute" />
+                 After="PREREQ_COPILOT_FLAG" Sequence="execute" />
     <CustomAction Id="CheckPrereqs"
                   BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
                   DllEntry="WixQuietExec"

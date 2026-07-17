@@ -202,3 +202,23 @@ stage-binaries.ps1 confirmed as valid PowerShell 5.1+ syntax; Push-Location/try/
 confirmed balanced). pwsh (PowerShell Core) is NOT installed in this session — build.ps1 was NOT
 executed, per this run's standing policy for every .ps1 file.
 
+
+[US-07 RE-VERIFIED] Architect's rejection was correct and real (CheckPrereqs never installed +
+scheduled before InstallFiles ran = dead on arrival, not a "can't test from macOS" limitation).
+Fixed: added CheckPrereqsScriptComponent (File in SCRIPTSDIR, in the Common feature), moved
+CheckPrereqs to the same same-Id SetProperty -> deferred WixQuietExec pattern as the 3 service
+registrations, scheduled InstallExecuteSequence After="InstallFiles". Re-verified by the SAME
+architect (resumed via its agent id, full context retained): APPROVED. One additional cheap
+hardening applied on its recommendation: explicit After chain between the 3 PREREQ_*_FLAG
+SetProperty actions and the CheckPrereqs command-line builder (previously all four only shared a
+common Before="CheckPrereqs" anchor with no ordering among themselves — WiX's tie-break wasn't
+guaranteed, and a mis-ordered flag would have silently resolved to its "" default, silently skipping
+that CLI's probe — log-only consequence, but avoidable for one attribute each).
+
+Also fixed 2 smaller stale-note issues from the same review: prd.json's mcpProxyBinEntry
+confirmedFacts entry described the wrong vendored path (corrected to proxy\dist\bin\mcp-proxy.mjs,
+matching what Product.wxs actually uses); README.md no longer calls finished files "stubs/
+placeholders".
+
+ALL 10 PRD STORIES NOW PASS AND ARCHITECT-APPROVED. Proceeding to deslop + regression re-verify +
+cancel per Ralph's mandated chain.
