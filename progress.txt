@@ -139,3 +139,66 @@ documented manual test procedure" prd.json's US-03 acceptance criteria call for.
 built and run from /tmp/stage-test (scratch, outside the repo, nothing committed). NOT executed via
 real pwsh — flagged honestly per this run's standing policy for all .ps1 files.
 
+[US-09 DONE] Task 9: build.ps1 finalization + CI wiring. Delegated to executor (sonnet).
+
+Modified installer/windows/build.ps1 (was the US-01 stub): now orchestrates the full pipeline —
+(1) invokes scripts/stage-binaries.ps1 via the `&` call operator, threading through -ArtifactsDir
+(now Mandatory), -ChecksumsFile, -OutDir; relies on stage-binaries.ps1's own `Write-Error; exit 1`
+propagating up through the same process/runspace to abort build.ps1 before wix build is ever
+reached on any staging failure (a $LASTEXITCODE check afterward is defense-in-depth only); (2)
+resolves the Version preprocessor variable from package.json's "version" field (repo root, two
+levels up from installer/windows/) unless -Version is passed explicitly — confirmed package.json's
+current version is 0.1.0, not hardcoded anywhere in the script; (3) Push-Locations into
+installer/windows/ before invoking `wix build Product.wxs -ext WixToolset.Util.wixext -arch x64 -d
+Version=... -d ClaudeExe=bin\claude-mcp-server.exe -d CodexExe=bin\codex-mcp-server.exe -d
+CopilotExe=bin\copilot-mcp-server.exe -d McpProxyDir=vendor\mcp-proxy -d
+NssmExe=vendor\nssm\nssm.exe -out dist\mcp-agent-bridge-windows-x64.msi`, restoring the caller's
+location in a finally block. Design correction made during authoring: all the -d path values and
+-out are relative to installer/windows/ (matching Product.wxs's own header comment and its <File
+Source="$(var.XxxExe)"> elements), NOT the repo root — so the wix invocation runs with
+installer/windows/ as cwd and references the file as bare "Product.wxs", not
+"installer/windows/Product.wxs".
+
+Added a new `build-msi` job to .github/workflows/release-windows.yml (needs: build; did not modify
+the existing `build` job's steps/conditions at all). Real gap found and wired around rather than
+guessed past: the existing job only uploads the 3 raw .exe + checksums-windows-x64.txt as a plain
+workflow artifact (actions/upload-artifact) when NOT a tag push (`if: !startsWith(github.ref,
+'refs/tags/')`) — on an actual tagged release (the only trigger that matters for a real release),
+those files go to the GitHub Release via softprops/action-gh-release instead, and no
+actions/upload-artifact ever runs. So build-msi cannot use actions/download-artifact and instead:
+gates itself on `if: startsWith(github.ref, 'refs/tags/')` (same condition as the existing
+release-upload step), then pulls its inputs via `gh release download ${{ github.ref_name }}`
+against the release that the `build` job (a `needs:` dependency, so it has already completed)
+already created and populated. Job steps: install wix 5.0.2 (pinned, per
+installer/windows/README.md's documented EULA-avoidance reasoning), `wix extension add
+WixToolset.Util.wixext/5.0.2` (required before `-ext WixToolset.Util.wixext` will resolve — verified
+this exact command's real syntax/behavior locally in this session, see below), download release
+assets via gh CLI, run build.ps1, SHA-256-hash the resulting .msi with Get-FileHash, then upload both
+the .msi and the checksum file to the release via softprops/action-gh-release@v2 — same action this
+repo's existing job already uses for release-asset attachment, not a different one.
+
+REAL LOCAL VERIFICATION (stronger than "authored, unverified" for this one piece): dotnet SDK 10.0.203
+is installed locally, and `dotnet tool install --global wix --version 5.0.2` was already present/
+succeeded. `wix extension add WixToolset.Util.wixext/5.0.2` was run for real on macOS (extension/NuGet
+package management works fine even though actual `wix build` does not run on this platform) — exit 0,
+confirmed via `wix extension list` afterward showing "WixToolset.Util.wixext 5.0.2". This is genuine
+evidence the CI job's extension-add step syntax is correct, not just documentation-derived.
+
+Validated .github/workflows/release-windows.yml's new job with
+`python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release-windows.yml'))"` — parsed
+successfully, both jobs (`build`, `build-msi`) present. This validates YAML SYNTAX ONLY, not GitHub
+Actions semantics (job dependency resolution, expression evaluation, runner behavior, gh CLI/softprops
+action behavior at runtime, etc.).
+
+EXPLICITLY FLAGGED: this new `build-msi` CI job has NOT been run for real. Doing so would require
+pushing a tag to trigger release-windows.yml on GitHub Actions' windows-latest runner and observing
+a real run. `gh` CLI auth is broken in this session (invalid GITHUB_TOKEN, confirmed earlier in this
+Ralph run, before US-01), so that path is not available here either. Do not treat this job as
+verified until a real workflow run against an actual tag push has been observed on GitHub Actions.
+
+build.ps1 was reviewed by eye only for PowerShell correctness (backtick line-continuations checked
+byte-for-byte for trailing whitespace — none found; hashtable dot-notation splatting into
+stage-binaries.ps1 confirmed as valid PowerShell 5.1+ syntax; Push-Location/try/finally/Pop-Location
+confirmed balanced). pwsh (PowerShell Core) is NOT installed in this session — build.ps1 was NOT
+executed, per this run's standing policy for every .ps1 file.
+

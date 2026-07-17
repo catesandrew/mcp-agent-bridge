@@ -52,3 +52,63 @@ jobs:
         with:
           name: binaries-windows-x64
           path: ./bin/*
+
+  build-msi:
+    name: Build Windows MSI installer
+    needs: build
+    # Only meaningful on a real release: the raw .exe binaries + checksums
+    # are only attached to a GitHub Release (via softprops/action-gh-release
+    # in the `build` job above) when triggered by a tag push — the
+    # `workflow_dispatch` path instead uploads them as a plain workflow
+    # artifact and never creates a release for this job to attach the MSI
+    # to. See installer/windows/README.md and progress.txt (US-09) for why
+    # this job pulls its inputs from the release assets rather than
+    # actions/download-artifact.
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install WiX v5 (pinned — do NOT use the default/latest version)
+        # v7+ requires accepting a paid "Open Source Maintenance Fee" EULA
+        # before it will even run (confirmed during authoring of this
+        # installer — see installer/windows/README.md). Pin to exactly
+        # 5.0.2, which has no such gate.
+        run: dotnet tool install --global wix --version 5.0.2
+
+      - name: Add WixToolset.Util.wixext extension
+        # Required by Product.wxs's deferred service-registration
+        # CustomActions (WixQuietExec / Wix4UtilCA_$(sys.BUILDARCHSHORT));
+        # `wix build -ext WixToolset.Util.wixext` fails unless the
+        # extension has been added to the local cache first.
+        run: wix extension add WixToolset.Util.wixext/5.0.2
+
+      - name: Download release binaries + checksums
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          gh release download ${{ github.ref_name }} --dir release-assets --repo ${{ github.repository }}
+
+      - name: Build MSI
+        shell: pwsh
+        run: |
+          ./installer/windows/build.ps1 -ArtifactsDir release-assets
+
+      - name: Compute MSI checksum
+        shell: pwsh
+        run: |
+          $msi = "installer/windows/dist/mcp-agent-bridge-windows-x64.msi"
+          $hash = (Get-FileHash -LiteralPath $msi -Algorithm SHA256).Hash.ToLower()
+          "$hash  mcp-agent-bridge-windows-x64.msi" | Out-File -FilePath "installer/windows/dist/checksums-windows-x64-msi.txt" -Encoding ascii -NoNewline
+
+      - name: Upload MSI to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            installer/windows/dist/mcp-agent-bridge-windows-x64.msi
+            installer/windows/dist/checksums-windows-x64-msi.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
