@@ -83,8 +83,18 @@ jobs:
         # Required by Product.wxs's deferred service-registration
         # CustomActions (WixQuietExec / Wix4UtilCA_$(sys.BUILDARCHSHORT));
         # `wix build -ext WixToolset.Util.wixext` fails unless the
-        # extension has been added to the local cache first.
-        run: wix extension add WixToolset.Util.wixext/5.0.2
+        # extension has been added first. MUST use --global (-g): a non-
+        # global `wix extension add` caches the extension under a
+        # .wix\extensions\ folder rooted at whatever directory the add
+        # command ran from (repo root here) — NOT a global, cwd-independent
+        # cache, and NOT resolved by walking up parent directories the way
+        # git/npm/dotnet-tool manifests do. build.ps1 (the next step) does
+        # `Push-Location installer/windows/` before running `wix build`, a
+        # different directory than this step's cwd, so a non-global add
+        # here would leave that build unable to find the extension at all
+        # (confirmed: this is exactly what caused error WIX0144 on a real
+        # CI run before this fix — see progress.txt).
+        run: wix extension add --global WixToolset.Util.wixext/5.0.2
 
       - name: Download release binaries + checksums (tag push)
         if: startsWith(github.ref, 'refs/tags/')

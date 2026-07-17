@@ -31,8 +31,16 @@ direct testing in this session):
 
 ```
 dotnet tool install --global wix --version 5.0.2
-wix extension add WixToolset.Util.wixext/5.0.2
+wix extension add --global WixToolset.Util.wixext/5.0.2
 ```
+
+**Use `--global` (`-g`)** — a non-global `wix extension add` caches the extension under a
+`.wix\extensions\` folder rooted at whatever directory you ran it from, not a directory-independent
+cache, and WiX does not search parent directories the way git/npm/dotnet-tool manifests do.
+`build.ps1` runs `wix build` from inside `installer/windows/`, so adding the extension without
+`--global` from the repo root (or anywhere else) leaves that build unable to find it at all —
+confirmed by a real CI failure (`error WIX0144: The extension 'WixToolset.Util.wixext' could not
+be found`) before this note was added.
 
 Then run the build script, pointing it at a directory containing the 3
 raw release binaries + `checksums-windows-x64.txt` (e.g. downloaded from a
