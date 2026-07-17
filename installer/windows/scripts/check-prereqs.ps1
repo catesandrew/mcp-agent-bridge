@@ -4,9 +4,11 @@
   Non-blocking prerequisite check for mcp-agent-bridge's Windows MSI installer.
 
   .DESCRIPTION
-  Invoked by an IMMEDIATE WiX CustomAction ("CheckPrereqs") in the UI
-  sequence (see Product.wxs) via the WixQuietExec pattern, which captures
-  this script's STDOUT and writes it to the MSI install log automatically.
+  Invoked by a DEFERRED WiX CustomAction ("CheckPrereqs") in
+  InstallExecuteSequence, After="InstallFiles" (see Product.wxs), via the
+  same-Id SetProperty -> WixQuietExec pattern also used for the 3 service
+  registrations. WixQuietExec captures this script's STDOUT and writes it to
+  the MSI install log automatically, regardless of UI level.
 
   Checks whether node.exe/npx (shared prerequisite for all three MCP
   services) and each SELECTED feature's underlying agent CLI (claude/codex/

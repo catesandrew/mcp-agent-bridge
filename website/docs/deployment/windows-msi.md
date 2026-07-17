@@ -194,15 +194,15 @@ prefer reinstalling with the MSI property when you can.
 
 ### "Missing CLI" warning during install
 
-During interactive installs (not `/quiet` or `/passive`), the installer runs a prerequisite check for
-`node.exe`/`npx` and each **selected** feature's underlying agent CLI (`claude`, `codex`, `copilot`) on
-the **machine-wide** PATH -- not your own user PATH, since the services run as `LocalSystem`. This
-check is informational only: a missing CLI **never blocks install**. It just means that feature's
-service will be running but non-functional until the CLI is installed and available on the machine
-PATH.
+On every install -- interactive, `/quiet`, or `/passive` alike -- the installer runs a prerequisite
+check for `node.exe`/`npx` and each **selected** feature's underlying agent CLI (`claude`, `codex`,
+`copilot`) on the **machine-wide** PATH -- not your own user PATH, since the services run as
+`LocalSystem`. This check is informational only: a missing CLI **never blocks install**. It just means
+that feature's service will be running but non-functional until the CLI is installed and available on
+the machine PATH.
 
-In this release, the result is written only to the MSI install log (there is no popup dialog yet --
-see the note below). To see it, run the installer with logging enabled:
+The result is written only to the MSI install log (there is no popup dialog yet -- see the note
+below). To see it, run the installer with logging enabled:
 
 ```powershell
 msiexec /i mcp-agent-bridge-windows-x64.msi /l*v install.log
