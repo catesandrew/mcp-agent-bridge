@@ -50,6 +50,14 @@
 
   .PARAMETER InstallRoot
   The MSI's INSTALLFOLDER — used as the service's AppDirectory.
+
+  .PARAMETER LogDir
+  Directory the service's stdout/stderr get written to (created if missing).
+  Defaults to %ProgramData%\mcp-agent-bridge\logs — machine-wide, consistent
+  with the service running as LocalSystem (Design Decision 11: NOT
+  %LOCALAPPDATA%, which install.ps1 uses today but wouldn't make sense for a
+  LocalSystem service to write to). Without this, NSSM silently discards the
+  process's stdout/stderr entirely — there is no log without it.
 #>
 param(
     [Parameter(Mandatory = $true)][string] $ServiceName,
@@ -59,7 +67,8 @@ param(
     [Parameter(Mandatory = $true)][int]    $Port,
     [Parameter(Mandatory = $true)][string] $PortEnvVar,
     [Parameter(Mandatory = $true)][string] $InstallRoot,
-    [string] $NodeExe = "node.exe"
+    [string] $NodeExe = "node.exe",
+    [string] $LogDir = "$env:ProgramData\mcp-agent-bridge\logs"
 )
 
 $ErrorActionPreference = "Stop"
@@ -91,6 +100,23 @@ $appParameters = '"' + $McpProxyEntry + '" --host 127.0.0.1 --port ' + $Port + '
 Invoke-Nssm @("set", $ServiceName, "AppParameters", $appParameters)
 
 Invoke-Nssm @("set", $ServiceName, "AppEnvironmentExtra", "$PortEnvVar=$Port")
+
+# NSSM discards a wrapped process's stdout/stderr entirely unless AppStdout/
+# AppStderr are set — without this there is no log at all, anywhere. Create
+# the directory first: NSSM does not create missing parent directories for
+# these paths on its own.
+if (-not (Test-Path -LiteralPath $LogDir)) {
+    New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+}
+$stdoutLog = Join-Path $LogDir "$ServiceName.out.log"
+$stderrLog = Join-Path $LogDir "$ServiceName.err.log"
+Invoke-Nssm @("set", $ServiceName, "AppStdout", $stdoutLog)
+Invoke-Nssm @("set", $ServiceName, "AppStderr", $stderrLog)
+# Rotate on service (re)start so logs don't grow unbounded across restarts —
+# NSSM's own built-in rotation (not a custom log-rotation tool).
+Invoke-Nssm @("set", $ServiceName, "AppRotateFiles", "1")
+Invoke-Nssm @("set", $ServiceName, "AppRotateOnline", "1")
+Invoke-Nssm @("set", $ServiceName, "AppRotateBytes", "10485760")
 
 # Restart-on-crash (the KeepAlive-equivalent behavior the macOS plists get for
 # free), with a throttle so a fast-failing process (e.g. Node/npx missing)
