@@ -1,11 +1,12 @@
 import { spawn } from "node:child_process";
 import { resolve, normalize } from "node:path";
 import type {
+  ChatResult,
   ClaudeJsonOutput,
   ClaudeRunnerOptions,
   ReviewResult,
 } from "../shared/types.js";
-import { REVIEW_JSON_SCHEMA, QUICK_ANALYSIS_JSON_SCHEMA } from "../shared/types.js";
+import { CHAT_JSON_SCHEMA, REVIEW_JSON_SCHEMA, QUICK_ANALYSIS_JSON_SCHEMA } from "../shared/types.js";
 import type { QuickAnalysisResult } from "../shared/types.js";
 
 const DEFAULT_ALLOWED_TOOLS = ["Read", "Grep", "Glob", "LS"];
@@ -276,11 +277,24 @@ function isQuickAnalysisResult(value: unknown): value is QuickAnalysisResult {
   );
 }
 
+function isChatResult(value: unknown): value is ChatResult {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "reply" in value &&
+    "toolCalls" in value &&
+    Array.isArray((value as ChatResult).toolCalls)
+  );
+}
+
+const DEFAULT_STRUCTURED_INSTRUCTION =
+  "You are a code reviewer. Analyze the following and respond with a structured review.";
+
 /**
  * Shared spawn + `--json-schema` + parse machinery for any `claude -p`
- * call that must return one specific JSON shape. `runClaudeReview` and
- * `runQuickAnalysis` are both thin wrappers around this with their own
- * schema and validator.
+ * call that must return one specific JSON shape. `runClaudeReview`,
+ * `runQuickAnalysis`, and `runClaudeChat` are all thin wrappers around this
+ * with their own schema, validator, and instruction framing.
  */
 function runClaudeStructured<T>(
   prompt: string,
@@ -288,6 +302,7 @@ function runClaudeStructured<T>(
   validate: (value: unknown) => value is T,
   invalidMessage: string,
   options: ClaudeRunnerOptions = {},
+  instruction: string = DEFAULT_STRUCTURED_INSTRUCTION,
 ): Promise<T> {
   const envConfig = getEnvConfig();
   const merged: ClaudeRunnerOptions = { ...envConfig, ...options };
@@ -295,7 +310,7 @@ function runClaudeStructured<T>(
 
   const schemaStr = JSON.stringify(schema);
 
-  const reviewPrompt = `You are a code reviewer. Analyze the following and respond with a structured review.
+  const reviewPrompt = `${instruction}
 
 ${prompt}`;
 
@@ -427,5 +442,32 @@ export async function runQuickAnalysis(
     isQuickAnalysisResult,
     "Quick analysis result missing required fields",
     options,
+  );
+}
+
+/**
+ * Run one turn of an interactive chat via `claude -p --json-schema`,
+ * constrained to {@link ChatResult}. The caller is responsible for
+ * assembling `prompt` from system instructions, available tool
+ * descriptions, conversation history, and the user's latest message —
+ * this bridge has no notion of multi-turn state and never executes a
+ * proposed tool call itself.
+ *
+ * @example
+ * ```ts
+ * const { reply, toolCalls } = await runClaudeChat(assembledPrompt);
+ * ```
+ */
+export async function runClaudeChat(
+  prompt: string,
+  options: ClaudeRunnerOptions = {},
+): Promise<ChatResult> {
+  return runClaudeStructured(
+    prompt,
+    CHAT_JSON_SCHEMA,
+    isChatResult,
+    "Chat result missing required fields",
+    options,
+    "You are an assistant embedded in a PR review tool. Respond to the latest message using the supplied context and conversation history. If the user's request maps to one of the described tools, propose it in toolCalls instead of just describing it in prose; otherwise return an empty toolCalls array.",
   );
 }

@@ -10,7 +10,7 @@ vi.mock("node:child_process", () => ({
 
 // Import after mocking
 const { spawn } = await import("node:child_process");
-const { runClaude, runClaudeReview, runQuickAnalysis } = await import("../claude-runner.js");
+const { runClaude, runClaudeReview, runQuickAnalysis, runClaudeChat } = await import("../claude-runner.js");
 
 function createMockProcess(output: string, exitCode = 0): ChildProcess {
   const stdout = new PassThrough();
@@ -411,6 +411,92 @@ describe("runQuickAnalysis", () => {
     );
 
     await expect(runQuickAnalysis("prompt")).rejects.toThrow(
+      /missing required fields/,
+    );
+  });
+});
+
+describe("runClaudeChat", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("passes --json-schema and returns a reply with an empty toolCalls array", async () => {
+    const chat = { reply: "This PR looks safe to merge.", toolCalls: [] };
+
+    const mockOutput: ClaudeJsonOutput = {
+      type: "result",
+      subtype: "success",
+      cost_usd: 0.01,
+      is_error: false,
+      duration_ms: 1500,
+      duration_api_ms: 1400,
+      num_turns: 1,
+      result: JSON.stringify(chat),
+      session_id: "sess-chat",
+    };
+
+    vi.mocked(spawn).mockReturnValue(
+      createMockProcess(JSON.stringify(mockOutput)),
+    );
+
+    const result = await runClaudeChat("User: is this PR safe to merge?");
+
+    const args = vi.mocked(spawn).mock.calls[0]![1] as string[];
+    expect(args).toContain("--json-schema");
+
+    expect(result.reply).toBe("This PR looks safe to merge.");
+    expect(result.toolCalls).toEqual([]);
+  });
+
+  it("returns proposed tool calls when present", async () => {
+    const chat = {
+      reply: "I'll approve this signal.",
+      toolCalls: [
+        { name: "approve_signal", arguments: { id: "sig-1" }, reason: "User asked to approve it." },
+      ],
+    };
+
+    const mockOutput: ClaudeJsonOutput = {
+      type: "result",
+      subtype: "success",
+      cost_usd: 0.01,
+      is_error: false,
+      duration_ms: 1500,
+      duration_api_ms: 1400,
+      num_turns: 1,
+      result: JSON.stringify(chat),
+      session_id: "sess-chat-2",
+    };
+
+    vi.mocked(spawn).mockReturnValue(
+      createMockProcess(JSON.stringify(mockOutput)),
+    );
+
+    const result = await runClaudeChat("User: approve signal sig-1");
+
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls[0]!.name).toBe("approve_signal");
+  });
+
+  it("rejects when the model's output is missing reply or toolCalls", async () => {
+    const mockOutput: ClaudeJsonOutput = {
+      type: "result",
+      subtype: "success",
+      cost_usd: 0.01,
+      is_error: false,
+      duration_ms: 1500,
+      duration_api_ms: 1400,
+      num_turns: 1,
+      result: JSON.stringify({ reply: "missing toolCalls field" }),
+      session_id: "sess-chat-3",
+    };
+
+    vi.mocked(spawn).mockReturnValue(
+      createMockProcess(JSON.stringify(mockOutput)),
+    );
+
+    await expect(runClaudeChat("prompt")).rejects.toThrow(
       /missing required fields/,
     );
   });

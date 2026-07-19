@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createServer, startServer, startHttpServer } from "../shared/server-factory.js";
-import { runClaude, runClaudeReview, runQuickAnalysis, validateCwd } from "./claude-runner.js";
+import { runClaude, runClaudeChat, runClaudeReview, runQuickAnalysis, validateCwd } from "./claude-runner.js";
 import { buildCoverLetterPrompt } from "../shared/cover-letter-skill.js";
 import { buildCreativePortfolioResumePrompt } from "../shared/creative-portfolio-resume-skill.js";
 import { buildExecutiveResumePrompt } from "../shared/executive-resume-skill.js";
@@ -170,6 +170,38 @@ export function createClaudeServer(): McpServer {
       return {
         content: [
           { type: "text" as const, text: JSON.stringify(analysis, null, 2) },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "agent_chat",
+    {
+      title: "Agent Chat",
+      description:
+        "One turn of an interactive chat with resource context and optional tool proposals. The caller assembles the full prompt (system instructions, resource context, available tool descriptions, and conversation history) — this tool has no memory of prior turns. Returns a text reply plus zero or more proposed tool calls; this bridge never executes a tool call itself, the caller decides whether to act on a proposal.",
+      inputSchema: {
+        prompt: z
+          .string()
+          .max(500_000)
+          .describe(
+            "The fully assembled prompt: system instructions, resource context, tool descriptions, conversation history, and the user's latest message",
+          ),
+        cwd: z
+          .string()
+          .optional()
+          .describe("Working directory for the Claude session, if file access is needed"),
+      },
+    },
+    async ({ prompt, cwd }) => {
+      const chat = await runClaudeChat(prompt, {
+        cwd: validateCwd(cwd ?? undefined),
+      });
+
+      return {
+        content: [
+          { type: "text" as const, text: JSON.stringify(chat, null, 2) },
         ],
       };
     },

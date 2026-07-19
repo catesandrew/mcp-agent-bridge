@@ -8,10 +8,11 @@ vi.mock("../claude-runner.js", () => ({
   runClaude: vi.fn(),
   runClaudeReview: vi.fn(),
   runQuickAnalysis: vi.fn(),
+  runClaudeChat: vi.fn(),
   validateCwd: vi.fn((cwd: string | undefined) => cwd),
 }));
 
-const { runClaude, runClaudeReview, runQuickAnalysis } = await import("../claude-runner.js");
+const { runClaude, runClaudeReview, runQuickAnalysis, runClaudeChat } = await import("../claude-runner.js");
 const { createClaudeServer } = await import("../server.js");
 
 describe("Claude MCP Server", () => {
@@ -48,6 +49,7 @@ describe("Claude MCP Server", () => {
     expect(toolNames).toContain("ask");
     expect(toolNames).toContain("code_review");
     expect(toolNames).toContain("quick_analysis");
+    expect(toolNames).toContain("agent_chat");
     expect(toolNames).toContain("cover_letter_generator");
     expect(toolNames).toContain("creative_portfolio_resume");
     expect(toolNames).toContain("executive_resume_writer");
@@ -70,7 +72,7 @@ describe("Claude MCP Server", () => {
     expect(toolNames).toContain("review_pr_gh");
     expect(toolNames).toContain("open_pr_ado");
     expect(toolNames).toContain("review_pr_ado");
-    expect(tools).toHaveLength(26);
+    expect(tools).toHaveLength(27);
   });
 
   describe("review tool", () => {
@@ -214,6 +216,62 @@ describe("Claude MCP Server", () => {
       const textContent = result.content as Array<{ type: string; text: string }>;
       const parsed = JSON.parse(textContent[0]!.text) as { verdict: string; reason: string };
       expect(parsed.verdict).toBe("SAFE_TO_MERGE");
+    });
+  });
+
+  describe("agent_chat tool", () => {
+    it("has correct input schema", async () => {
+      const { tools } = await client.listTools();
+      const tool = tools.find((t) => t.name === "agent_chat");
+
+      expect(tool).toBeDefined();
+      expect(tool!.inputSchema.properties).toHaveProperty("prompt");
+      expect(tool!.inputSchema.required).toContain("prompt");
+    });
+
+    it("calls runClaudeChat and returns a reply with no tool calls", async () => {
+      vi.mocked(runClaudeChat).mockResolvedValue({
+        reply: "This review has 2 open critical issues.",
+        toolCalls: [],
+      });
+
+      const result = await client.callTool({
+        name: "agent_chat",
+        arguments: {
+          prompt: "System: you are reviewing PR #123.\n\nUser: what's blocking this PR?",
+        },
+      });
+
+      expect(runClaudeChat).toHaveBeenCalledOnce();
+      const textContent = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(textContent[0]!.text) as { reply: string; toolCalls: unknown[] };
+      expect(parsed.reply).toBe("This review has 2 open critical issues.");
+      expect(parsed.toolCalls).toEqual([]);
+    });
+
+    it("returns proposed tool calls when the model suggests an action", async () => {
+      vi.mocked(runClaudeChat).mockResolvedValue({
+        reply: "I can reject this signal for you — it's a duplicate.",
+        toolCalls: [
+          {
+            name: "reject_signal",
+            arguments: { id: "sig-1", reason: "duplicate of sig-2" },
+            reason: "The user asked to clean up duplicate signals.",
+          },
+        ],
+      });
+
+      const result = await client.callTool({
+        name: "agent_chat",
+        arguments: { prompt: "User: reject the duplicate signal" },
+      });
+
+      const textContent = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(textContent[0]!.text) as {
+        toolCalls: Array<{ name: string; arguments: Record<string, unknown> }>;
+      };
+      expect(parsed.toolCalls).toHaveLength(1);
+      expect(parsed.toolCalls[0]!.name).toBe("reject_signal");
     });
   });
 });

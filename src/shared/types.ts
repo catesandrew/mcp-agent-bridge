@@ -185,6 +185,57 @@ export const QUICK_ANALYSIS_JSON_SCHEMA = {
 };
 
 /**
+ * A single action Claude proposes in response to a chat turn. The caller
+ * (e.g. pr-bot's agent chat) decides whether to execute it — this bridge
+ * never invokes tools itself, it only asks the model to describe one.
+ */
+export interface ChatToolCall {
+  /** Name of the tool being proposed, from the set the caller described in its prompt. */
+  name: string;
+  /** Arguments for the proposed tool call. */
+  arguments: Record<string, unknown>;
+  /** Why the model is proposing this action. */
+  reason: string;
+}
+
+/**
+ * Structured output from a Claude chat turn, returned by {@link runClaudeChat}.
+ * The caller is responsible for assembling conversation history, resource
+ * context, and available tool descriptions into the prompt string — this
+ * bridge has no notion of multi-turn state or tool execution itself.
+ */
+export interface ChatResult {
+  /** The assistant's text reply to show the user. */
+  reply: string;
+  /** Zero or more proposed tool calls awaiting the caller's confirmation. */
+  toolCalls: ChatToolCall[];
+}
+
+/**
+ * JSON Schema for {@link ChatResult}, passed to `claude -p --json-schema`
+ * to constrain agent-chat output to a reply plus optional tool proposals.
+ */
+export const CHAT_JSON_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    reply: { type: "string" as const },
+    toolCalls: {
+      type: "array" as const,
+      items: {
+        type: "object" as const,
+        properties: {
+          name: { type: "string" as const },
+          arguments: { type: "object" as const },
+          reason: { type: "string" as const },
+        },
+        required: ["name", "arguments", "reason"],
+      },
+    },
+  },
+  required: ["reply", "toolCalls"],
+} as const;
+
+/**
  * Default HTTP ports for each MCP proxy, used by LaunchAgent scripts.
  *
  * Override per-server via environment variables:
