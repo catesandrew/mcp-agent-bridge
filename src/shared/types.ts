@@ -146,6 +146,119 @@ export const REVIEW_JSON_SCHEMA = {
   required: ["verdict", "issues", "suggestions"],
 } as const;
 
+// ---------------------------------------------------------------------------
+// Playwright release-failure analysis (consumed by the `analyze_failure` tool).
+// Mirrors the review structured-output pattern but with a findings[] schema.
+// ---------------------------------------------------------------------------
+
+/** Model confidence in a finding. */
+export type AnalysisConfidence = "high" | "medium" | "low";
+/** Whether a failure is newly introduced or already ongoing. */
+export type FindingStatus = "new" | "ongoing";
+/** Playwright test outcome carried on a finding. */
+export type TestOutcome = "failed" | "flaky";
+
+/** A test attached to a finding. */
+export interface AffectedTest {
+  name: string;
+  outcome: TestOutcome;
+}
+
+/** A single grouped diagnostic finding. */
+export interface Finding {
+  title: string;
+  rootCause: string;
+  confidence: AnalysisConfidence;
+  status: FindingStatus;
+  matchedKnownArea: string | null;
+  modelSuggestedConnection: string | null;
+  affectedTests: AffectedTest[];
+  evidence: string;
+  suggestedAction: string;
+}
+
+/** Run-level summary echoed back into the analysis result. */
+export interface AnalysisRunSummary {
+  passed: number;
+  failed: number;
+  flaky: number;
+  skipped: number;
+  duration: string;
+  release: string;
+  environment: string;
+}
+
+/**
+ * Structured output from a failure analysis, returned by {@link runClaudeStructured}
+ * for the `analyze_failure` tool.
+ */
+export interface FailureAnalysisResult {
+  runSummary: AnalysisRunSummary;
+  findings: Finding[];
+}
+
+/**
+ * JSON Schema for {@link FailureAnalysisResult}, passed to
+ * `claude -p --json-schema` to constrain the model's output.
+ */
+export const FAILURE_ANALYSIS_JSON_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    runSummary: {
+      type: "object" as const,
+      properties: {
+        passed: { type: "integer" as const },
+        failed: { type: "integer" as const },
+        flaky: { type: "integer" as const },
+        skipped: { type: "integer" as const },
+        duration: { type: "string" as const },
+        release: { type: "string" as const },
+        environment: { type: "string" as const },
+      },
+      required: ["passed", "failed", "flaky", "skipped", "duration", "release", "environment"],
+    },
+    findings: {
+      type: "array" as const,
+      items: {
+        type: "object" as const,
+        properties: {
+          title: { type: "string" as const },
+          rootCause: { type: "string" as const },
+          confidence: { type: "string" as const, enum: ["high", "medium", "low"] },
+          status: { type: "string" as const, enum: ["new", "ongoing"] },
+          matchedKnownArea: { type: ["string", "null"] as const },
+          modelSuggestedConnection: { type: ["string", "null"] as const },
+          affectedTests: {
+            type: "array" as const,
+            items: {
+              type: "object" as const,
+              properties: {
+                name: { type: "string" as const },
+                outcome: { type: "string" as const, enum: ["failed", "flaky"] },
+              },
+              required: ["name", "outcome"],
+            },
+          },
+          evidence: { type: "string" as const },
+          suggestedAction: { type: "string" as const },
+        },
+        required: [
+          "title",
+          "rootCause",
+          "confidence",
+          "status",
+          "matchedKnownArea",
+          "modelSuggestedConnection",
+          "affectedTests",
+          "evidence",
+          "suggestedAction",
+        ],
+      },
+    },
+  },
+  required: ["runSummary", "findings"],
+} as const;
+
 /**
  * The 5 verdicts `quick_analysis` picks exactly one from when triaging a
  * stale PR review. See docs/superpowers/specs in pr-bot for the taxonomy

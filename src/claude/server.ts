@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createServer, startServer, startHttpServer } from "../shared/server-factory.js";
-import { runClaude, runClaudeChat, runClaudeReview, runQuickAnalysis, validateCwd } from "./claude-runner.js";
+import { runClaude, runClaudeChat, runClaudeReview, runClaudeStructured, runQuickAnalysis, validateCwd } from "./claude-runner.js";
 import { buildCoverLetterPrompt } from "../shared/cover-letter-skill.js";
 import { buildCreativePortfolioResumePrompt } from "../shared/creative-portfolio-resume-skill.js";
 import { buildExecutiveResumePrompt } from "../shared/executive-resume-skill.js";
@@ -24,8 +24,8 @@ import { buildReviewPrGhPrompt } from "../shared/pr-gh-review-skill.js";
 import { buildOpenPrAdoPrompt } from "../shared/pr-ado-open-skill.js";
 import { buildReviewPrAdoPrompt } from "../shared/pr-ado-review-skill.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ReviewResult } from "../shared/types.js";
-import { PORTS } from "../shared/types.js";
+import type { ReviewResult, FailureAnalysisResult } from "../shared/types.js";
+import { PORTS, FAILURE_ANALYSIS_JSON_SCHEMA } from "../shared/types.js";
 
 /**
  * Create the Claude MCP bridge server with `review`, `ask`, and `code_review` tools.
@@ -140,6 +140,36 @@ export function createClaudeServer(): McpServer {
       return {
         content: [
           { type: "text" as const, text: JSON.stringify(review, null, 2) },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "analyze_failure",
+    {
+      title: "Analyze Test Failure",
+      description:
+        "Analyze a Playwright release-failure evidence bundle and return a structured diagnostic report. The caller supplies the full prompt (run summary, failed/flaky results, and repo context) as `content`; the model's output is constrained to the findings[] schema (runSummary + per-finding rootCause, confidence, status, evidence, suggestedAction).",
+      inputSchema: {
+        content: z
+          .string()
+          .max(500_000)
+          .describe(
+            "The full analysis prompt: run summary, failed/flaky results with errors/stacks/error-context, and repo context",
+          ),
+      },
+    },
+    async ({ content }) => {
+      const analysis = await runClaudeStructured<FailureAnalysisResult>(
+        content,
+        FAILURE_ANALYSIS_JSON_SCHEMA,
+        { model: process.env["CLAUDE_ANALYSIS_MODEL"] ?? "sonnet" },
+      );
+
+      return {
+        content: [
+          { type: "text" as const, text: JSON.stringify(analysis, null, 2) },
         ],
       };
     },
