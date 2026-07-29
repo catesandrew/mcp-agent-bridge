@@ -1,18 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import type { ReviewResult } from "../../shared/types.js";
+import type { ReviewResult, FailureAnalysisResult } from "../../shared/types.js";
 
 // Mock the claude-runner module
 vi.mock("../claude-runner.js", () => ({
   runClaude: vi.fn(),
   runClaudeReview: vi.fn(),
+  runClaudeStructured: vi.fn(),
   runQuickAnalysis: vi.fn(),
   runClaudeChat: vi.fn(),
   validateCwd: vi.fn((cwd: string | undefined) => cwd),
 }));
 
-const { runClaude, runClaudeReview, runQuickAnalysis, runClaudeChat } = await import("../claude-runner.js");
+const { runClaude, runClaudeReview, runClaudeStructured, runQuickAnalysis, runClaudeChat } = await import(
+  "../claude-runner.js"
+);
 const { createClaudeServer } = await import("../server.js");
 
 describe("Claude MCP Server", () => {
@@ -48,6 +51,7 @@ describe("Claude MCP Server", () => {
     expect(toolNames).toContain("review");
     expect(toolNames).toContain("ask");
     expect(toolNames).toContain("code_review");
+    expect(toolNames).toContain("analyze_failure");
     expect(toolNames).toContain("quick_analysis");
     expect(toolNames).toContain("agent_chat");
     expect(toolNames).toContain("cover_letter_generator");
@@ -72,7 +76,7 @@ describe("Claude MCP Server", () => {
     expect(toolNames).toContain("review_pr_gh");
     expect(toolNames).toContain("open_pr_ado");
     expect(toolNames).toContain("review_pr_ado");
-    expect(tools).toHaveLength(27);
+    expect(tools).toHaveLength(28);
   });
 
   describe("review tool", () => {
@@ -109,6 +113,59 @@ describe("Claude MCP Server", () => {
       const textContent = result.content as Array<{ type: string; text: string }>;
       const parsed = JSON.parse(textContent[0]!.text) as ReviewResult;
       expect(parsed.verdict).toBe("APPROVED");
+    });
+  });
+
+  describe("analyze_failure tool", () => {
+    it("has correct input schema", async () => {
+      const { tools } = await client.listTools();
+      const tool = tools.find((t) => t.name === "analyze_failure");
+
+      expect(tool).toBeDefined();
+      expect(tool!.inputSchema.properties).toHaveProperty("content");
+      expect(tool!.inputSchema.required).toContain("content");
+    });
+
+    it("calls runClaudeStructured and returns findings JSON", async () => {
+      const mockAnalysis: FailureAnalysisResult = {
+        runSummary: {
+          passed: 95,
+          failed: 1,
+          flaky: 9,
+          skipped: 1,
+          duration: "21.0m",
+          release: "Release-8600",
+          environment: "QA1 QAStatus",
+        },
+        findings: [
+          {
+            title: "Employment History step regressed",
+            rootCause: "Progress bar shows Residential History instead of Employment History",
+            confidence: "high",
+            status: "new",
+            matchedKnownArea: null,
+            modelSuggestedConnection: null,
+            affectedTests: [{ name: "homebankingFlowOAO.spec.ts:534", outcome: "failed" }],
+            evidence: 'toHaveText expected "Employment History", received "Residential History"',
+            suggestedAction: "Check the application-progress-bar step ordering",
+          },
+        ],
+      };
+
+      vi.mocked(runClaudeStructured).mockResolvedValue(mockAnalysis);
+
+      const result = await client.callTool({
+        name: "analyze_failure",
+        arguments: { content: "Release: Release-8600\n..." },
+      });
+
+      expect(runClaudeStructured).toHaveBeenCalledOnce();
+
+      const textContent = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(textContent[0]!.text) as FailureAnalysisResult;
+      expect(parsed.runSummary.release).toBe("Release-8600");
+      expect(parsed.findings).toHaveLength(1);
+      expect(parsed.findings[0]!.confidence).toBe("high");
     });
   });
 

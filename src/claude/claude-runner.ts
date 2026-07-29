@@ -296,7 +296,7 @@ const DEFAULT_STRUCTURED_INSTRUCTION =
  * `runQuickAnalysis`, and `runClaudeChat` are all thin wrappers around this
  * with their own schema, validator, and instruction framing.
  */
-function runClaudeStructured<T>(
+function runClaudeStructuredInternal<T>(
   prompt: string,
   schema: object,
   validate: (value: unknown) => value is T,
@@ -342,7 +342,7 @@ ${prompt}`;
     const timer = setTimeout(() => {
       settle(() => {
         proc.kill("SIGTERM");
-        reject(new Error(`claude review timed out after ${PROCESS_TIMEOUT_MS}ms`));
+        reject(new Error(`claude process timed out after ${PROCESS_TIMEOUT_MS}ms`));
       });
     }, PROCESS_TIMEOUT_MS);
 
@@ -355,7 +355,7 @@ ${prompt}`;
       if (stdoutSize > MAX_OUTPUT_BYTES) {
         settle(() => {
           proc.kill("SIGTERM");
-          reject(new Error("claude review output exceeded maximum allowed size"));
+          reject(new Error("claude output exceeded maximum allowed size"));
         });
         return;
       }
@@ -372,7 +372,7 @@ ${prompt}`;
           const detail = stderr.trim();
           reject(
             new Error(
-              `claude review exited with code ${code ?? "null"}${detail ? `: ${detail}` : ""}`,
+              `claude exited with code ${code ?? "null"}${detail ? `: ${detail}` : ""}`,
             ),
           );
           return;
@@ -389,7 +389,7 @@ ${prompt}`;
           } else if (output.result) {
             value = JSON.parse(output.result);
           } else {
-            throw new Error("No review content in claude output");
+            throw new Error("No structured content in claude output");
           }
 
           if (!validate(value)) {
@@ -399,7 +399,7 @@ ${prompt}`;
         } catch (err) {
           reject(
             new Error(
-              `Failed to parse review output: ${err instanceof Error ? err.message : String(err)}`,
+              `Failed to parse structured output: ${err instanceof Error ? err.message : String(err)}`,
             ),
           );
         }
@@ -408,11 +408,42 @@ ${prompt}`;
   });
 }
 
+/**
+ * Run a schema-constrained `claude -p --json-schema` call and return the parsed
+ * structured output.
+ *
+ * This is the generic structured-output path shared by every tool that needs a
+ * schema-constrained response (code review, failure analysis, ...). The prompt
+ * is passed through verbatim — callers supply any system/role framing.
+ *
+ * @param prompt - The full prompt to send (framing included by the caller).
+ * @param schema - JSON Schema passed to `--json-schema` to constrain output.
+ * @param options - Override model, max turns, cwd, or allowed tools.
+ * @returns The parsed structured output, typed as `T`.
+ * @throws {Error} On spawn failure, non-zero exit, timeout, output overflow,
+ *   or if no structured content is present.
+ */
+export async function runClaudeStructured<T>(
+  prompt: string,
+  schema: object,
+  options: ClaudeRunnerOptions = {},
+): Promise<T> {
+  // Use a generic validator that always returns true
+  const genericValidator = (_value: unknown): _value is T => true;
+  return runClaudeStructuredInternal(
+    prompt,
+    schema,
+    genericValidator,
+    "Failed to parse structured output",
+    options,
+  );
+}
+
 export async function runClaudeReview(
   prompt: string,
   options: ClaudeRunnerOptions = {},
 ): Promise<ReviewResult> {
-  return runClaudeStructured(
+  return runClaudeStructuredInternal(
     prompt,
     REVIEW_JSON_SCHEMA,
     isReviewResult,
@@ -436,7 +467,7 @@ export async function runQuickAnalysis(
   prompt: string,
   options: ClaudeRunnerOptions = {},
 ): Promise<QuickAnalysisResult> {
-  return runClaudeStructured(
+  return runClaudeStructuredInternal(
     prompt,
     QUICK_ANALYSIS_JSON_SCHEMA,
     isQuickAnalysisResult,
@@ -462,7 +493,7 @@ export async function runClaudeChat(
   prompt: string,
   options: ClaudeRunnerOptions = {},
 ): Promise<ChatResult> {
-  return runClaudeStructured(
+  return runClaudeStructuredInternal(
     prompt,
     CHAT_JSON_SCHEMA,
     isChatResult,
