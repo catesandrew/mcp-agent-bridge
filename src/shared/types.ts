@@ -358,4 +358,5 @@ export const PORTS = {
   claude: 8940,
   codex: 8941,
   copilot: 8945,
+  video: 8960,
 } as const;

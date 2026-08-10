@@ -50,7 +50,7 @@ done
 # ── Unload ────────────────────────────────────────────────────────────────────
 if [[ "${UNLOAD_AGENTS}" == "true" ]]; then
   log "Unloading LaunchAgents..."
-  for label in osx.mcp.claude osx.mcp.codex osx.mcp.copilot; do
+  for label in osx.mcp.claude osx.mcp.codex osx.mcp.copilot osx.mcp.video-mcp-server; do
     if launchctl list "${label}" >/dev/null 2>&1; then
       launchctl unload "${HOME}/Library/LaunchAgents/${label}.plist" 2>/dev/null || true
       ok "Unloaded ${label}"
@@ -128,7 +128,7 @@ if [[ "${INSTALL_LAUNCHD}" == "true" ]]; then
   fi
 
   printf '\nLaunchAgents installed.\n'
-  printf 'Ports: Claude=8940  Codex=8941  Copilot=8945\n'
+  printf 'Ports: Claude=8940  Codex=8941  Copilot=8945  Video=8965\n'
 fi
 
 printf 'Done.\n'
