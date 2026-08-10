@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+import("../dist/video/server.js").catch((err) => {
+  console.error("Failed to start Video MCP server:", err);
+  process.exit(1);
+});

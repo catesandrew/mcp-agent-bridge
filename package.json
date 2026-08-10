@@ -20,11 +20,12 @@
   "bin": {
     "claude-mcp-server": "./bin/claude-mcp-server",
     "codex-mcp-server": "./bin/codex-mcp-server",
-    "copilot-mcp-server": "./bin/copilot-mcp-server"
+    "copilot-mcp-server": "./bin/copilot-mcp-server",
+    "video-mcp-server": "./bin/video-mcp-server"
   },
   "scripts": {
     "build": "tsc",
-    "build:exe": "bun build --compile --outfile exe/claude-mcp-server src/claude/server.ts && bun build --compile --outfile exe/codex-mcp-server src/codex/server.ts && bun build --compile --outfile exe/copilot-mcp-server src/copilot/server.ts",
+    "build:exe": "bun build --compile --outfile exe/claude-mcp-server src/claude/server.ts && bun build --compile --outfile exe/codex-mcp-server src/codex/server.ts && bun build --compile --outfile exe/copilot-mcp-server src/copilot/server.ts && bun build --compile --outfile exe/video-mcp-server src/video/server.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
