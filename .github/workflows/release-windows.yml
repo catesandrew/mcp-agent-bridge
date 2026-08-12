@@ -30,6 +30,7 @@ jobs:
           bun build --compile --target=bun-windows-x64 ./src/claude/server.ts --outfile ./bin/claude-mcp-server-windows-x64.exe
           bun build --compile --target=bun-windows-x64 ./src/codex/server.ts --outfile ./bin/codex-mcp-server-windows-x64.exe
           bun build --compile --target=bun-windows-x64 ./src/copilot/server.ts --outfile ./bin/copilot-mcp-server-windows-x64.exe
+          bun build --compile --target=bun-windows-x64 ./src/video/server.ts --outfile ./bin/video-mcp-server-windows-x64.exe
 
       - name: Generate checksums
         run: |
@@ -95,6 +96,12 @@ jobs:
         # (confirmed: this is exactly what caused error WIX0144 on a real
         # CI run before this fix — see progress.txt).
         run: wix extension add --global WixToolset.Util.wixext/5.0.2
+
+      - name: Add WixToolset.UI.wixext extension
+        # Required by Product.wxs's <UIRef Id="WixUI_FeatureTree" /> (the
+        # feature-selection install wizard) — same --global rationale as the
+        # Util extension above.
+        run: wix extension add --global WixToolset.UI.wixext/5.0.2
 
       - name: Download release binaries + checksums (tag push)
         if: startsWith(github.ref, 'refs/tags/')

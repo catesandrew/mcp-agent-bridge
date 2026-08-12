@@ -96,7 +96,8 @@ $OutDir = (Resolve-Path -LiteralPath $OutDir).Path
 $servers = @(
     @{ Raw = "claude-mcp-server-windows-x64.exe"; Canonical = "claude-mcp-server.exe" },
     @{ Raw = "codex-mcp-server-windows-x64.exe"; Canonical = "codex-mcp-server.exe" },
-    @{ Raw = "copilot-mcp-server-windows-x64.exe"; Canonical = "copilot-mcp-server.exe" }
+    @{ Raw = "copilot-mcp-server-windows-x64.exe"; Canonical = "copilot-mcp-server.exe" },
+    @{ Raw = "video-mcp-server-windows-x64.exe"; Canonical = "video-mcp-server.exe" }
 )
 
 # ---------------------------------------------------------------------------
