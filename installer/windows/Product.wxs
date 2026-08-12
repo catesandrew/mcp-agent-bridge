@@ -3,15 +3,18 @@
   mcp-agent-bridge — Windows MSI installer (WiX v5)
   Plan: .omc/plans/2026-07-16-windows-msi-installer.md
 
-  BUILD REQUIREMENT: this file uses the WixToolset.Util.wixext extension
-  (WixQuietExec, referenced via BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)")
-  to run each service-registration script as a deferred custom action. Build
-  with:
-    wix build Product.wxs -ext WixToolset.Util.wixext -arch x64 ^
+  BUILD REQUIREMENT: this file uses two extensions —
+  WixToolset.Util.wixext (WixQuietExec, referenced via
+  BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)") to run each service-
+  registration script as a deferred custom action, and WixToolset.UI.wixext
+  (WixUI_FeatureTree, so the install wizard lets you check/uncheck which of
+  the 4 services to install) — build with:
+    wix build Product.wxs -ext WixToolset.Util.wixext -ext WixToolset.UI.wixext -arch x64 ^
       -d Version=<x.y.z> ^
       -d ClaudeExe=bin\claude-mcp-server.exe ^
       -d CodexExe=bin\codex-mcp-server.exe ^
       -d CopilotExe=bin\copilot-mcp-server.exe ^
+      -d VideoExe=bin\video-mcp-server.exe ^
       -d McpProxyDir=vendor\mcp-proxy ^
       -d NssmExe=vendor\nssm\nssm.exe ^
       -out dist\mcp-agent-bridge-windows-x64.msi
@@ -25,7 +28,7 @@
   install-tested. First real verification must happen on Windows or via the
   windows-latest GitHub Actions CI runner.
 -->
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package
     Name="mcp-agent-bridge"
     Manufacturer="mcp-agent-bridge"
@@ -50,11 +53,51 @@
 
     <MediaTemplate EmbedCab="yes" />
 
+    <!-- Feature-selection UI: standard WixToolset.UI.wixext dialog set that
+         lets the installing admin check/uncheck which of the 4 services to
+         install (via CustomizeDlg's feature tree), rather than always
+         silently installing all of them. Only affects interactive installs
+         — a /qn silent install (or ADDLOCAL/REMOVE properties) skips all
+         dialogs regardless, so this is purely additive. WixUILicenseRtf
+         must point at a real .rtf file; License.rtf here is generated from
+         the repo's own Apache-2.0 LICENSE text. -->
+    <ui:WixUI Id="WixUI_FeatureTree" />
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+
     <!-- ================= Ports: defaults matching the library's / pr-bot's
          own defaults, overridable via `msiexec /i ... CLAUDEPORT=9940` ================= -->
     <Property Id="CLAUDEPORT" Value="8940" Secure="yes" />
     <Property Id="CODEXPORT" Value="8941" Secure="yes" />
     <Property Id="COPILOTPORT" Value="8945" Secure="yes" />
+    <Property Id="VIDEOPORT" Value="8965" Secure="yes" />
+
+    <!-- ================= Service run-as account: defaults to LocalSystem
+         (NSSM's own historical default), overridable so all 4 services can
+         run as a different account if local policy blocks LocalSystem
+         service starts:
+           msiexec /i ... SERVICEACCOUNT=".\svc-mcp-bridge" SERVICEPASSWORDFILE="C:\secure\pw.txt"
+         "LocalSystem" is register-service.ps1's own recognized "use the
+         default, don't touch ObjectName" sentinel (WiX rejects an empty
+         Property/@Value at build time — confirmed by a real build error,
+         see the PREREQ_*_FLAG note below — so it can't just default to "").
+
+         SERVICEPASSWORDFILE is a FILE PATH, not the password itself —
+         learned the hard way from a real install: msiexec's own verbose
+         log (/l*v) prints a deferred CustomAction's full resolved
+         CustomActionData in its "Executing op: CustomActionSchedule(...)"
+         line UNCONDITIONALLY, regardless of Property/@Hidden="yes" on
+         either the password's own property or the composed property that
+         embeds it (both tried; a real cleartext password ended up in a log
+         file either way). Since the 4 service-registration SetProperty
+         actions below all resolve into exactly that mechanism, NO plain
+         string property is safe here — only a path pointing at a file
+         whose *contents* register-service.ps1 reads directly (see its own
+         -ServicePasswordFile doc comment) keeps the secret out of every
+         MSI-managed string. The caller must create that file with
+         restrictive ACLs before running msiexec and delete it afterward.
+         ================= -->
+    <Property Id="SERVICEACCOUNT" Value="LocalSystem" Secure="yes" />
+    <Property Id="SERVICEPASSWORDFILE" Value=" " Secure="yes" />
 
     <!-- Numeric range validation — WiX/MSI's Launch condition grammar
          auto-coerces a Property's string value against integer literals for
@@ -66,12 +109,20 @@
             Message="CODEXPORT must be a number between 1024 and 65535." />
     <Launch Condition="COPILOTPORT &gt;= 1024 AND COPILOTPORT &lt;= 65535"
             Message="COPILOTPORT must be a number between 1024 and 65535." />
+    <Launch Condition="VIDEOPORT &gt;= 1024 AND VIDEOPORT &lt;= 65535"
+            Message="VIDEOPORT must be a number between 1024 and 65535." />
     <Launch Condition="CLAUDEPORT &lt;&gt; CODEXPORT"
             Message="CLAUDEPORT and CODEXPORT must not be the same port." />
     <Launch Condition="CLAUDEPORT &lt;&gt; COPILOTPORT"
             Message="CLAUDEPORT and COPILOTPORT must not be the same port." />
+    <Launch Condition="CLAUDEPORT &lt;&gt; VIDEOPORT"
+            Message="CLAUDEPORT and VIDEOPORT must not be the same port." />
     <Launch Condition="CODEXPORT &lt;&gt; COPILOTPORT"
             Message="CODEXPORT and COPILOTPORT must not be the same port." />
+    <Launch Condition="CODEXPORT &lt;&gt; VIDEOPORT"
+            Message="CODEXPORT and VIDEOPORT must not be the same port." />
+    <Launch Condition="COPILOTPORT &lt;&gt; VIDEOPORT"
+            Message="COPILOTPORT and VIDEOPORT must not be the same port." />
 
     <!-- ================= Directory layout ================= -->
     <StandardDirectory Id="ProgramFiles64Folder">
@@ -173,7 +224,7 @@
          children (confirmed by a real WIX0005 build error: "The Feature
          element contains an unexpected child element"). -->
     <SetProperty Id="InstallClaudeService"
-                 Value="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]register-service.ps1&quot; -ServiceName McpBridgeClaude -NssmExe &quot;[NSSMDIR]nssm.exe&quot; -McpProxyEntry &quot;[PROXYDIR]dist\bin\mcp-proxy.mjs&quot; -TargetExe &quot;[BINDIR]claude-mcp-server.exe&quot; -Port [CLAUDEPORT] -PortEnvVar CLAUDE_MCP_HTTP_PORT -InstallRoot &quot;[INSTALLFOLDER]&quot;"
+                 Value="&quot;powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]register-service.ps1&quot; -ServiceName McpBridgeClaude -NssmExe &quot;[NSSMDIR]nssm.exe&quot; -McpProxyEntry &quot;[PROXYDIR]dist\bin\mcp-proxy.mjs&quot; -TargetExe &quot;[BINDIR]claude-mcp-server.exe&quot; -Port [CLAUDEPORT] -PortEnvVar CLAUDE_MCP_HTTP_PORT -InstallRoot &quot;[INSTALLFOLDER]\&quot; -ServiceAccount &quot;[SERVICEACCOUNT]&quot; -ServicePasswordFile &quot;[SERVICEPASSWORDFILE]&quot;"
                  Before="InstallClaudeService"
                  Sequence="execute" />
     <CustomAction Id="InstallClaudeService"
@@ -198,7 +249,7 @@
     </Feature>
 
     <SetProperty Id="InstallCodexService"
-                 Value="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]register-service.ps1&quot; -ServiceName McpBridgeCodex -NssmExe &quot;[NSSMDIR]nssm.exe&quot; -McpProxyEntry &quot;[PROXYDIR]dist\bin\mcp-proxy.mjs&quot; -TargetExe &quot;[BINDIR]codex-mcp-server.exe&quot; -Port [CODEXPORT] -PortEnvVar CODEX_MCP_HTTP_PORT -InstallRoot &quot;[INSTALLFOLDER]&quot;"
+                 Value="&quot;powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]register-service.ps1&quot; -ServiceName McpBridgeCodex -NssmExe &quot;[NSSMDIR]nssm.exe&quot; -McpProxyEntry &quot;[PROXYDIR]dist\bin\mcp-proxy.mjs&quot; -TargetExe &quot;[BINDIR]codex-mcp-server.exe&quot; -Port [CODEXPORT] -PortEnvVar CODEX_MCP_HTTP_PORT -InstallRoot &quot;[INSTALLFOLDER]\&quot; -ServiceAccount &quot;[SERVICEACCOUNT]&quot; -ServicePasswordFile &quot;[SERVICEPASSWORDFILE]&quot;"
                  Before="InstallCodexService"
                  Sequence="execute" />
     <CustomAction Id="InstallCodexService"
@@ -223,10 +274,44 @@
     </Feature>
 
     <SetProperty Id="InstallCopilotService"
-                 Value="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]register-service.ps1&quot; -ServiceName McpBridgeCopilot -NssmExe &quot;[NSSMDIR]nssm.exe&quot; -McpProxyEntry &quot;[PROXYDIR]dist\bin\mcp-proxy.mjs&quot; -TargetExe &quot;[BINDIR]copilot-mcp-server.exe&quot; -Port [COPILOTPORT] -PortEnvVar COPILOT_MCP_HTTP_PORT -InstallRoot &quot;[INSTALLFOLDER]&quot;"
+                 Value="&quot;powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]register-service.ps1&quot; -ServiceName McpBridgeCopilot -NssmExe &quot;[NSSMDIR]nssm.exe&quot; -McpProxyEntry &quot;[PROXYDIR]dist\bin\mcp-proxy.mjs&quot; -TargetExe &quot;[BINDIR]copilot-mcp-server.exe&quot; -Port [COPILOTPORT] -PortEnvVar COPILOT_MCP_HTTP_PORT -InstallRoot &quot;[INSTALLFOLDER]\&quot; -ServiceAccount &quot;[SERVICEACCOUNT]&quot; -ServicePasswordFile &quot;[SERVICEPASSWORDFILE]&quot;"
                  Before="InstallCopilotService"
                  Sequence="execute" />
     <CustomAction Id="InstallCopilotService"
+                  BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
+                  DllEntry="WixQuietExec"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
+
+    <!-- ================= Video MCP Server =================
+         Structurally different from the other 3: video-mcp-server has its
+         own built-in HTTP transport (src/video/server.ts checks for a
+         literal "http" flag, passed as a single argv token prefixed with
+         two hyphens), so it needs no mcp-proxy wrapping — register-
+         service.ps1's -NativeHttp switch runs the exe directly as the
+         service program instead of wrapping it via node.exe + mcp-proxy.
+         No CheckPrereqs entry: video-mcp-server has no external CLI
+         prerequisite the way Claude/Codex/Copilot depend on their agent
+         CLIs being on PATH. -->
+    <Feature Id="VideoService" Title="Video MCP Server" Level="1">
+      <Component Id="VideoExeComponent" Directory="BINDIR" Guid="*">
+        <File Id="VideoExeFile" Source="$(var.VideoExe)" KeyPath="yes" />
+
+        <ServiceControl Id="VideoServiceControl"
+                         Name="McpBridgeVideo"
+                         Start="install"
+                         Stop="both"
+                         Remove="uninstall"
+                         Wait="yes" />
+      </Component>
+    </Feature>
+
+    <SetProperty Id="InstallVideoService"
+                 Value="&quot;powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]register-service.ps1&quot; -ServiceName McpBridgeVideo -NssmExe &quot;[NSSMDIR]nssm.exe&quot; -NativeHttp -TargetExe &quot;[BINDIR]video-mcp-server.exe&quot; -Port [VIDEOPORT] -PortEnvVar VIDEO_MCP_HTTP_PORT -InstallRoot &quot;[INSTALLFOLDER]\&quot; -ServiceAccount &quot;[SERVICEACCOUNT]&quot; -ServicePasswordFile &quot;[SERVICEPASSWORDFILE]&quot;"
+                 Before="InstallVideoService"
+                 Sequence="execute" />
+    <CustomAction Id="InstallVideoService"
                   BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
                   DllEntry="WixQuietExec"
                   Execute="deferred"
@@ -312,7 +397,7 @@
          (in addition to the pre-existing Before="CheckPrereqs" on all three
          flags above) makes the full ordering deterministic end-to-end. -->
     <SetProperty Id="CheckPrereqs"
-                 Value="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]check-prereqs.ps1&quot; [PREREQ_CLAUDE_FLAG] [PREREQ_CODEX_FLAG] [PREREQ_COPILOT_FLAG]"
+                 Value="&quot;powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[SCRIPTSDIR]check-prereqs.ps1&quot; [PREREQ_CLAUDE_FLAG] [PREREQ_CODEX_FLAG] [PREREQ_COPILOT_FLAG]"
                  After="PREREQ_COPILOT_FLAG" Sequence="execute" />
     <CustomAction Id="CheckPrereqs"
                   BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
@@ -340,6 +425,7 @@
       <Custom Action="InstallClaudeService" After="InstallFiles" Condition="&amp;ClaudeService=3" />
       <Custom Action="InstallCodexService" After="InstallFiles" Condition="&amp;CodexService=3" />
       <Custom Action="InstallCopilotService" After="InstallFiles" Condition="&amp;CopilotService=3" />
+      <Custom Action="InstallVideoService" After="InstallFiles" Condition="&amp;VideoService=3" />
       <Custom Action="CheckPrereqs" After="InstallFiles" />
     </InstallExecuteSequence>
     <!-- Condition "&amp;FeatureId=3" (INSTALLSTATE_LOCAL) ensures each

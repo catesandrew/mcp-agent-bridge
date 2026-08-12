@@ -32,6 +32,7 @@ direct testing in this session):
 ```
 dotnet tool install --global wix --version 5.0.2
 wix extension add --global WixToolset.Util.wixext/5.0.2
+wix extension add --global WixToolset.UI.wixext/5.0.2
 ```
 
 **Use `--global` (`-g`)** — a non-global `wix extension add` caches the extension under a
