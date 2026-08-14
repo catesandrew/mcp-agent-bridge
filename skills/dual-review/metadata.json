@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "organization": "Personal",
+  "date": "August 2026",
+  "abstract": "Sends implementation plans and diffs to a second AI agent (via the claude-mcp-bridge or codex MCP server) for independent structured review before and after implementing. Workflow: explore the codebase, draft a plan, pre-review the plan via the reviewer MCP's `review` tool, iterate on NEEDS_REVISION feedback up to 3 rounds (critical issues must be addressed before re-submitting, major issues should be, minor issues are at the caller's discretion; after 3 rounds present the issues to the user for a decision), implement once APPROVED, then send the final diff for a post-implementation review, and present a summary with the full review history. The reviewer runs in a separate Claude instance with read-only codebase access and returns structured JSON (verdict: APPROVED | NEEDS_REVISION, an issues array with severity/description/recommendation, and an optional suggestions array). Requires the reviewer MCP server running (default http://localhost:8940/mcp, configured in .mcp.json under mcpServers.claude_reviewer as a streamable-http server) and reads CLAUDE_REVIEW_MODEL (default opus), CLAUDE_REVIEW_MAX_TURNS (default 8), CLAUDE_REVIEW_CWD, and CLAUDE_REVIEW_ALLOWED_TOOLS from the environment.",
+  "references": []
+}

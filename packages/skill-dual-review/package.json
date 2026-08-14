@@ -1,0 +1,19 @@
+{
+  "name": "@mcp-agent-bridge/skill-dual-review",
+  "version": "1.0.0",
+  "description": "Sends implementation plans and diffs to a second AI agent (via the claude-mcp-bridge or codex MCP server) for independent structured review before and after implementing. Workflow: explore the…",
+  "files": [
+    "SKILL.md",
+    "metadata.json",
+    "references/**",
+    "README.md",
+    "agents/**",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "private": true
+}

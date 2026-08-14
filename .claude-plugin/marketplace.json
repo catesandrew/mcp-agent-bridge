@@ -1,0 +1,17 @@
+{
+  "name": "mcp-agent-bridge",
+  "owner": {
+    "name": "Personal"
+  },
+  "plugins": [
+    {
+      "name": "mab",
+      "description": "1 skills, distributed via the mab plugin command prefix.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/dual-review"
+      ]
+    }
+  ]
+}
