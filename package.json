@@ -29,7 +29,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
-    "clean": "rm -rf dist exe"
+    "clean": "rm -rf dist exe",
+    "version-packages": "changeset version && node bin/sync-metadata-version.mjs && pnpm install --lockfile-only",
+    "release-skills": "node bin/generate-skill-package-json.mjs --check && node bin/sync-skill-content.mjs --all && node bin/validate-skill-package.mjs --all && changeset publish"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
@@ -37,6 +39,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "@changesets/cli": "^3.0.0",
     "typescript": "^5.7.0",
     "vitest": "^3.2.1"
   },

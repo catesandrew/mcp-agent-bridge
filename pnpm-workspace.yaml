@@ -1,2 +1,5 @@
+packages:
+  - "packages/skill-*"
+
 allowBuilds:
   esbuild: false
