@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
 
-Stop copy-pasting diffs between Claude, Codex, and Copilot tabs to get a second opinion. MCP Agent Bridge exposes each of them as an [MCP](https://modelcontextprotocol.io) server, so any agent -- or any of the others -- can call them directly, in the same session, with structured JSON back instead of another wall of prose.
+Stop copy-pasting diffs between Claude, Codex, and Copilot tabs to get a second opinion. MCP Agent Bridge exposes each of them as an [MCP](https://modelcontextprotocol.io) server, so any one can call any other directly, in the same session, with structured JSON back instead of another wall of prose.
 
 **[Documentation](https://mcp-agent-bridge.catesworks.dev/)**
 
