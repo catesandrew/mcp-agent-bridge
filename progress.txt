@@ -350,3 +350,68 @@ registration, NSSM AppParameters quoting, PATH/Environment behavior, port valida
 and upgrade are all still "authored per documented behavior, not install-tested." Next real
 verification step: download the mcp-agent-bridge-windows-x64-msi artifact from that successful run
 and actually install it on a Windows machine.
+
+================================================================================
+[NEW RALPH RUN 2026-08-22] Docs site rewrite, Skills Catalog, README, Vercel deploy
+================================================================================
+
+Plan: .omc/plans/2026-08-22-docs-skills-catalog-vercel.md (3 rounds of Architect+Critic
+consensus review before execution — caught 6 real issues pre-implementation: a GitHub
+Pages/Vercel dual-host regression window, a dead link to a deleted doc, a false
+deploy-parity claim vs a sibling project, a stale "16 vs 18" resume-tool count, a
+rootDirectory mis-transcription, and a CLI-cwd-vs-rootDirectory conflict).
+
+WHAT SHIPPED:
+- New Docusaurus "Skills Catalog" section (website/docs/skills/index.md + dual-review.md),
+  replacing website/docs/guides/dual-review-skill.md. Documents dual-review's actual origin
+  (SPEC.md's original design, then productized via commits 3c12bac/0aac0a7/bf7279b) and its
+  two real distribution channels (Claude Code plugin marketplace `mab`, npm package
+  @mcp-agent-bridge/skill-dual-review@1.0.0, confirmed live on the npm registry).
+- README rewrite: sharper hook, new "Claude Code Skills" section with <details> install
+  blocks modeled on GoogleChrome/modern-web-guidance's README pattern, fixed a pre-existing
+  stale "16 resume tools" count (actual is 18) across README.md/SKILLS.md/resume-tools.md.
+- Docs hosting moved from GitHub Pages to Vercel (mcp-agent-bridge.catesworks.dev).
+  deploy-docs.yml deleted in the SAME commit as the docusaurus.config.ts baseUrl flip, so no
+  push could ever ship the new baseUrl against a still-active Pages workflow. Old Pages URL
+  (catesandrew.github.io/mcp-agent-bridge/) stays live but frozen/unlinked — not disabled,
+  that's an optional manual repo-settings step, not done here.
+
+VERCEL/CLOUDFLARE INFRA LEARNINGS (real, hard-won this session):
+- Vercel CLI `vercel link`/`vercel`/`vercel --prod` must run from the REPO ROOT when the
+  project's rootDirectory points at a subfolder (e.g. "website") — running the CLI from
+  *inside* that subfolder while rootDirectory is also set makes Vercel look for a doubled
+  path (website/website/) and fails. A sibling project's .vercel/project.json existing at
+  its repo root (not inside its own website/ folder) was the tell.
+- rootDirectory alone is not enough for a project linked from the repo root: Vercel's
+  framework auto-detection runs against the REPO ROOT's package.json at project-creation
+  time (here: `build: tsc`, the unrelated MCP bridge itself), not the subfolder's — an
+  undetected/null framework silently defaults the output dir to `public/`, which would ship
+  a 404 site with zero build error. Fix: PATCH the project with BOTH `rootDirectory` AND
+  `framework` explicitly (`docusaurus-2` here) rather than relying on auto-detection.
+- `vercel link --yes` does NOT bypass an ambiguous-git-remote prompt when the repo has 2+
+  git remotes (this repo has `origin` + a `cudirect` fork remote) — it hangs waiting for
+  interactive input even with --yes. Fix: `vercel git connect <explicit-remote-url> --yes`
+  takes the URL as an argument and skips the picker entirely.
+- A brand-new Vercel project's first-ever `vercel` deploy (no --prod flag) went straight to
+  target=production instead of a separate preview — there was no existing production
+  deployment for it to preserve as "current" while a preview builds alongside. This means
+  a planned "preview first, verify, then promote to prod" checkpoint doesn't actually happen
+  on a genuinely first deploy; if that risk matters (untested build image compatibility),
+  either accept the collapsed first-deploy-is-prod reality for a new project, or seed a
+  throwaway production deployment first so a REAL non-prod preview build becomes possible.
+- Cloudflare zone catesworks.dev already had a proven CNAME pattern for Vercel subdomains
+  (`<subdomain> -> cname.vercel-dns.com`, `proxied: false`) used by 2 other projects — matched
+  it exactly rather than guessing.
+
+PROCESS LEARNING: an Architect/Critic consensus loop caught a self-inflicted bug mid-fix —
+my round-1 fix for the GH-Pages/baseUrl regression window itself introduced a NEW bug
+(deferring the config flip until after Vercel verification, which would've made the Vercel
+build run against the WRONG config). Round 2 caught it. Then round-2's OWN fix (adding a
+rootDirectory PATCH) was itself inconsistent with the still-unchanged CLI cwd — round 2's
+Critic caught THAT. Multi-round adversarial review on a plan involving real infra ordering
+is worth the cost; each round found a genuinely different bug class, not diminishing returns.
+Same pattern repeated post-implementation: the architect's final PRD verification (not a
+rubber stamp) caught that the "preview deploy" acceptance criterion never actually happened
+(first-ever deploy went straight to prod) and that git auto-deploy silently failed
+(ambiguous remote prompt) — both real, both fixed, both honestly documented in prd.json's
+notes fields rather than silently upgraded to "as planned."

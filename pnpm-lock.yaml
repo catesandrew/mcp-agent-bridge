@@ -28,6 +28,8 @@ importers:
         specifier: ^3.2.1
         version: 3.2.4(@types/node@25.9.1)(yaml@2.9.0)
 
+  packages/skill-dual-review: {}
+
 packages:
 
   '@changesets/apply-release-plan@8.0.0':
