@@ -87,4 +87,4 @@ The `review` and `code_review` tools return structured JSON, making it easy to c
 
 ## The Dual-Review Skill
 
-For a fully automated review workflow, see the [Dual-Review Skill](./dual-review-skill) -- a Claude Code slash command that orchestrates multi-round reviews with automatic iteration on critical issues.
+For a fully automated review workflow, see the [dual-review skill](/docs/skills/dual-review) -- a Claude Code slash command that orchestrates multi-round reviews with automatic iteration on critical issues.

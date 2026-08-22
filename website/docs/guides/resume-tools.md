@@ -4,7 +4,7 @@ sidebar_position: 6
 
 # Resume & Career Tools
 
-MCP Agent Bridge includes 16 resume and career tools available on all three MCP servers (Claude, Codex, Copilot). Each tool embeds a specialized methodology from the [ResumeSkills](https://github.com/Paramchoudhary/ResumeSkills) project at compile time — no network fetch at runtime.
+MCP Agent Bridge includes 18 resume and career tools available on all three MCP servers (Claude, Codex, Copilot). Each tool embeds a specialized methodology from the [ResumeSkills](https://github.com/Paramchoudhary/ResumeSkills) project at compile time — no network fetch at runtime.
 
 ## Available Tools
 
@@ -269,7 +269,7 @@ Omit `career_facts` to tailor without the evidence map.
 
 ## Which Server to Use
 
-All 16 tools are identical across Claude, Codex, and Copilot servers. Choose based on what you're already using:
+All 18 tools are identical across Claude, Codex, and Copilot servers. Choose based on what you're already using:
 
 - **Claude** (`claude_reviewer`) — best for nuanced writing and detailed structured output
 - **Codex** (`codex_reviewer`) — OpenAI model alternative

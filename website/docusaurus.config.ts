@@ -5,11 +5,11 @@ import type * as Preset from "@docusaurus/preset-classic";
 const config: Config = {
   title: "MCP Agent Bridge",
   tagline:
-    "Bridge AI coding agents as MCP servers for cross-agent code review and collaboration",
+    "Stop copy-pasting diffs between agent tabs. Get a second opinion without leaving your editor.",
   favicon: "img/favicon.ico",
 
-  url: "https://catesandrew.github.io",
-  baseUrl: "/mcp-agent-bridge/",
+  url: "https://mcp-agent-bridge.catesworks.dev",
+  baseUrl: "/",
 
   organizationName: "catesandrew",
   projectName: "mcp-agent-bridge",
@@ -46,6 +46,11 @@ const config: Config = {
           sidebarId: "docsSidebar",
           position: "left",
           label: "Docs",
+        },
+        {
+          to: "/docs/skills",
+          position: "left",
+          label: "Skills Catalog",
         },
         {
           href: "https://github.com/catesandrew/mcp-agent-bridge",

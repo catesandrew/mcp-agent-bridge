@@ -4,17 +4,17 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
 
-Bridge AI coding agents (Claude Code, OpenAI Codex, GitHub Copilot) as [MCP](https://modelcontextprotocol.io) servers so they can call each other for code reviews, analysis, and cross-validation.
+Stop copy-pasting diffs between Claude, Codex, and Copilot tabs to get a second opinion. MCP Agent Bridge exposes each of them as an [MCP](https://modelcontextprotocol.io) server, so any agent -- or any of the others -- can call them directly, in the same session, with structured JSON back instead of another wall of prose.
 
-**[Documentation](https://catesandrew.github.io/mcp-agent-bridge/)**
+**[Documentation](https://mcp-agent-bridge.catesworks.dev/)**
 
 ## Why?
 
 AI coding agents are powerful individually, but they each have blind spots. MCP Agent Bridge lets you:
 
-- **Get a second opinion** -- Send your diff to a different AI model for review
+- **Get a second opinion** -- Send your diff to a different AI model for review, without leaving your editor
 - **Cross-validate** -- Compare responses from Claude, Codex, and Copilot on the same code
-- **Structured reviews** -- Get typed JSON output with verdict, issues by severity, and suggestions
+- **Structured reviews** -- Get typed JSON output with verdict, issues by severity, and suggestions -- parseable, not just readable
 - **Share instances** -- Run each agent once as a background service, shared by all clients
 
 ## Quick Start
@@ -58,13 +58,13 @@ Each bridge runs as a singleton background service behind an HTTP proxy. Multipl
 
 | Server | Port | Core Tools | Resume Tools |
 |--------|------|------------|--------------|
-| Claude | 8940 | `review`, `ask`, `code_review` | 16 career tools |
-| Codex | 8941 | `codex`, `code_review`, `codex_reply` | 16 career tools |
-| Copilot | 8945 | `ask`, `code_review` | 16 career tools |
+| Claude | 8940 | `review`, `ask`, `code_review` | 18 career tools |
+| Codex | 8941 | `codex`, `code_review`, `codex_reply` | 18 career tools |
+| Copilot | 8945 | `ask`, `code_review` | 18 career tools |
 
 ## Resume & Career Tools
 
-All three servers include 16 resume and career tools powered by embedded skill methodologies. No network fetch at runtime — the expert logic is compiled in.
+All three servers include 18 resume and career tools powered by embedded skill methodologies. No network fetch at runtime — the expert logic is compiled in.
 
 | Tool | Purpose |
 |------|---------|
@@ -87,7 +87,7 @@ All three servers include 16 resume and career tools powered by embedded skill m
 | `resume_version_manager` | Organize and track multiple resume versions with naming conventions |
 | `tech_resume_optimizer` | Optimize for software engineering, data, DevOps, and technical PM roles |
 
-See the [Resume Tools Guide](https://catesandrew.github.io/mcp-agent-bridge/docs/guides/resume-tools) and [SKILLS.md](SKILLS.md) for full input schemas and usage examples.
+See the [Resume Tools Guide](https://mcp-agent-bridge.catesworks.dev/docs/guides/resume-tools) and [SKILLS.md](SKILLS.md) for full input schemas and usage examples.
 
 ## Structured Review Output
 
@@ -108,6 +108,47 @@ The `review` and `code_review` tools return predictable JSON:
   ]
 }
 ```
+
+## Claude Code Skills
+
+This repo also ships **Claude Code skills** -- slash-command workflows distributed independently of
+the bridge servers above. Today that's [`dual-review`](https://mcp-agent-bridge.catesworks.dev/docs/skills/dual-review):
+send a plan or diff to a second agent (via the `claude_reviewer`/`codex` MCP tools) for structured
+review before and after you implement, iterating on feedback automatically. See the
+[Skills Catalog](https://mcp-agent-bridge.catesworks.dev/docs/skills) for the full list and what's
+planned.
+
+<details>
+<summary><b>Claude Code Plugin</b></summary>
+
+```shell
+/plugin marketplace add catesandrew/mcp-agent-bridge
+/plugin install mab@mcp-agent-bridge
+```
+
+</details>
+
+<details>
+<summary><b>npm</b></summary>
+
+```shell
+npm view @mcp-agent-bridge/skill-dual-review
+```
+
+Copy the published package's `SKILL.md` into your agent's skills directory if your tooling
+consumes skill files directly rather than through a plugin manager.
+
+</details>
+
+<details>
+<summary><b>Manual / clone</b></summary>
+
+```shell
+git clone https://github.com/catesandrew/mcp-agent-bridge.git
+cp -r mcp-agent-bridge/skills/dual-review ~/.claude/skills/dual-review
+```
+
+</details>
 
 ## Installation
 
@@ -135,7 +176,7 @@ bun run build:exe    # Standalone binaries in exe/
 # Linux -- systemd (see docs)
 ```
 
-See the [Deployment Guide](https://catesandrew.github.io/mcp-agent-bridge/docs/deployment/macos) for details.
+See the [Deployment Guide](https://mcp-agent-bridge.catesworks.dev/docs/deployment/macos) for details.
 
 ## Configuration
 
@@ -148,7 +189,7 @@ All servers are configured via environment variables:
 | `CODEX_MCP_HTTP_PORT` | `8941` | Codex HTTP port |
 | `COPILOT_MCP_HTTP_PORT` | `8945` | Copilot HTTP port |
 
-See [all environment variables](https://catesandrew.github.io/mcp-agent-bridge/docs/configuration/environment-variables) in the docs.
+See [all environment variables](https://mcp-agent-bridge.catesworks.dev/docs/configuration/environment-variables) in the docs.
 
 ## Testing
 

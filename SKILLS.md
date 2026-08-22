@@ -1,6 +1,6 @@
 # Resume & Career Skills Reference
 
-All 16 resume and career tools embedded in MCP Agent Bridge. Each tool hard-codes a specialized methodology from the [ResumeSkills](https://github.com/Paramchoudhary/ResumeSkills) project, making expert career guidance available through any connected AI agent without network fetches at runtime.
+All 18 resume and career tools embedded in MCP Agent Bridge. Each tool hard-codes a specialized methodology from the [ResumeSkills](https://github.com/Paramchoudhary/ResumeSkills) project, making expert career guidance available through any connected AI agent without network fetches at runtime.
 
 ## Tool Overview
 

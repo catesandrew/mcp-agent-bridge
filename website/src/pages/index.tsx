@@ -36,16 +36,16 @@ function HomepageHeader() {
 
 const features = [
   {
+    emoji: "🔍",
+    title: "Second Opinions, No Tab-Switching",
+    description:
+      "Get a second opinion from a different AI without leaving your editor. Send diffs to Claude for structured review, ask Codex for analysis, or consult Copilot -- from inside the session you're already in.",
+  },
+  {
     emoji: "🔗",
     title: "Unified MCP Interface",
     description:
       "Expose Claude, Codex, and Copilot as standard MCP servers. Any MCP client can call any agent using the same protocol.",
-  },
-  {
-    emoji: "🔍",
-    title: "Cross-Agent Code Review",
-    description:
-      "Get a second opinion from a different AI. Send diffs to Claude for structured review, ask Codex for analysis, or consult Copilot.",
   },
   {
     emoji: "⚡",

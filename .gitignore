@@ -29,3 +29,4 @@ installer/windows/dist/
 # in this environment's ~/.gitignore-global), which would otherwise silently
 # drop this file from every commit despite `git add` reporting success.
 !installer/windows/vendor/nssm/nssm.exe
+.vercel

@@ -5,7 +5,12 @@ slug: /intro
 
 # Introduction
 
-**MCP Agent Bridge** exposes AI coding agents -- Claude Code, OpenAI Codex, and GitHub Copilot -- as [Model Context Protocol (MCP)](https://modelcontextprotocol.io) servers. This lets any MCP client call any agent through a standardized interface, enabling cross-agent code review, second opinions, and multi-model collaboration.
+You're deep in a change with Claude Code, and you want a second opinion -- so you copy the diff,
+switch to a Codex or Copilot tab, paste it, wait, and copy the response back. **MCP Agent Bridge**
+removes that context switch: it exposes Claude Code, OpenAI Codex, and GitHub Copilot as
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io) servers, so any one of them can
+call any other directly, from inside the same session, and get structured JSON back instead of
+another wall of prose to re-read.
 
 ## Why?
 

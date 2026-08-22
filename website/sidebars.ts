@@ -20,9 +20,13 @@ const sidebars: SidebarsConfig = {
         "guides/codex-server",
         "guides/copilot-server",
         "guides/cross-agent-review",
-        "guides/dual-review-skill",
         "guides/resume-tools",
       ],
+    },
+    {
+      type: "category",
+      label: "Skills",
+      items: ["skills/index", "skills/dual-review"],
     },
     {
       type: "category",
