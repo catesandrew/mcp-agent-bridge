@@ -114,6 +114,44 @@ export function createClaudeServer(): McpServer {
   );
 
   server.registerTool(
+    "implement",
+    {
+      title: "Implement",
+      description:
+        "Have a Claude instance actually implement a task -- unlike `review`/`ask`/`code_review` " +
+        "(read-only by default: Read/Grep/Glob/LS), this grants Edit/Write/Bash so the session can " +
+        "make real file changes in `cwd`. Added 2026-08-29 for agent-ops: routing the actual coding " +
+        "step through this already-running, already-authenticated bridge process instead of spawning " +
+        "a fresh `claude -p` per job sidesteps a macOS Keychain access issue a freshly-spawned " +
+        "process (from a launchd-managed CI runner) hits that this long-lived bridge process doesn't.",
+      inputSchema: {
+        content: z
+          .string()
+          .max(500_000)
+          .describe("The task/prompt describing what to implement"),
+        cwd: z
+          .string()
+          .describe("Working directory to make changes in (required -- this tool edits files)"),
+        context: z
+          .string()
+          .optional()
+          .describe("Additional context about the task"),
+      },
+    },
+    async ({ content, cwd, context }) => {
+      const prompt = context ? `Context: ${context}\n\n${content}` : content;
+      const result = await runClaude(prompt, {
+        cwd: validateCwd(cwd),
+        allowedTools: ["Read", "Grep", "Glob", "LS", "Edit", "Write", "Bash", "WebFetch"],
+      });
+
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result) }],
+      };
+    },
+  );
+
+  server.registerTool(
     "code_review",
     {
       title: "Code Review",
