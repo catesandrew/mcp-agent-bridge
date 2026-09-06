@@ -30,3 +30,9 @@ installer/windows/dist/
 # drop this file from every commit despite `git add` reporting success.
 !installer/windows/vendor/nssm/nssm.exe
 .vercel
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/

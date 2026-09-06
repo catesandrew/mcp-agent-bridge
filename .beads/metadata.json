@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "mcp_agent_bridge",
+  "project_id": "0acbbd64-79cb-43b9-9a40-3ac683bb292a"
+}
