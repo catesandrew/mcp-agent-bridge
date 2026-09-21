@@ -25,7 +25,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "build:exe": "bun build --compile --outfile exe/claude-mcp-server src/claude/server.ts && bun build --compile --outfile exe/codex-mcp-server src/codex/server.ts && bun build --compile --outfile exe/copilot-mcp-server src/copilot/server.ts && bun build --compile --outfile exe/video-mcp-server src/video/server.ts",
+    "build:exe": "bun build --compile --outfile exe/claude-mcp-server src/claude/server.ts && bun build --compile --outfile exe/codex-mcp-server src/codex/server.ts && bun build --compile --outfile exe/copilot-mcp-server src/copilot/server.ts && bun build --compile --outfile exe/video-mcp-server src/video/server.ts && codesign --sign - --force exe/claude-mcp-server exe/codex-mcp-server exe/copilot-mcp-server exe/video-mcp-server",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
