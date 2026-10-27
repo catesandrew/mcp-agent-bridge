@@ -1,5 +1,7 @@
 # MCP Agent Bridge
 
+**Tags:** `vercel` `cli` `skills` `mcp` `monorepo`
+
 [![CI](https://github.com/catesandrew/mcp-agent-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/catesandrew/mcp-agent-bridge/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
